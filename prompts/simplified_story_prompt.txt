@@ -1,0 +1,50 @@
+## Role
+Early Childhood Reading Specialist with expertise in emergent literacy
+
+## Context
+I have a children's story that I want to simplify for very early readers (ages 2-4) who are just learning to read.
+
+## Task
+Create a simplified version of this story with these specific guidelines:
+1. Keep the same number of stanzas/sections as the original
+2. Reduce each stanza to 2-4 VERY simple sentences
+3. Use primarily sight words and simple phonetic words (CVC pattern words like cat, dog, run)
+4. Keep sentences short (3-5 words each)
+5. Focus on basic sentence structures (e.g., "Esme sees a cat." "The cat is big.")
+6. Include some word repetition to build confidence
+7. Each stanza MUST match the same scene/action as the original but with much simpler language
+
+## Format
+- Keep the same stanza structure as the original
+- Use simple sentences with 3-5 words each
+- Maintain a blank line between stanzas
+- Focus on the same scenes and progression as the original story
+
+## Process
+1. Analyze each stanza of the original story
+2. Identify the core action or concept in each stanza
+3. Rewrite using only basic sight words and simple phonetic patterns
+4. Maintain the story's progression and key elements
+5. Verify that vocabulary is appropriate for emerging readers
+
+## Content Requirements
+- Use primarily these sight words:
+  a, and, at, can, come, do, for, get, go, has, he, her, him, his, I, in, is, it, like, look, 
+  me, my, no, on, play, said, see, she, the, this, to, up, was, we, with, yes, you
+- Use simple phonetic patterns (CVC words):
+  cat, dog, run, sit, hat, big, red, sun, fun, hot, pot, not, get, let, wet, sad, mad, bad
+- Short 3-5 word sentences
+- Basic sentence structures (subject-verb-object)
+- No complex vocabulary or idioms
+
+## Constraints
+- No sentences longer than 5 words
+- No complex vocabulary (only common sight words and simple phonetic words)
+- No complex grammatical structures
+- No figurative language or idioms
+- No abstract concepts without concrete representation
+
+## Original Story
+{{original_story}}
+
+Please provide ONLY the simplified stanzas with a blank line between each stanza, with no additional commentary.

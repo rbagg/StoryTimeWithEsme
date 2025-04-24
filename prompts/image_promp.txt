@@ -1,0 +1,29 @@
+{{context_prefix}}Create a soft pastel drawing with vibrant, whimsical illustration showing: {{image_description}}
+
+## Character Description
+{{esme_description}}
+
+## Style Guidelines
+- Main focus: Esme must be drawn with consistent appearance in gentle, dreamy pastel colors
+- Character style: Any animals or supporting characters should be adorably stylized with VERY large, expressive eyes (taking up about 1/3 of their face), simplified rounded body shapes, and cute features
+- Animals should look like kawaii cartoon characters with exaggerated cuteness - big heads, tiny bodies, and innocent expressions
+- Eyes should be glossy and reflective with visible highlights to create the cute, appealing look
+- Art style: Whimsical and enchanting, with soft edges and clean outlines
+- Color palette: Harmonious pastel colors with pops of vibrant accents
+- Background: Rich environment with dreamy, storybook quality
+
+## Key Elements
+- The specific scene: {{image_description}}
+- Character consistency: Esme must appear consistent with previous images
+- Animal characters should have an innocent, wide-eyed, super cute appearance similar to kawaii illustrations
+
+## Technical Parameters
+- Create a cohesive illustration where animals have an adorable, stylized look with oversized shiny eyes and simplified features
+- {% if is_reference == "YES" %}THIS IMAGE WILL DEFINE THE CHARACTER'S APPEARANCE FOR THE ENTIRE STORY{% else %}Maintain consistent appearance with previous images{% endif %}
+
+## Negative Prompts
+- Distorted faces, extra limbs, two heads
+- Blurry, dark, scary, dull colors
+- Incorrect proportions, unnatural poses
+- Adult features, realistic animals
+- Overly complex backgrounds that distract from main characters

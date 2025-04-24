@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Esme's Story Generator{% endblock %}</title>
+
+    <!-- Base CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+
+    <!-- Additional CSS -->
+    {% block css %}{% endblock %}
+
+    <!-- External scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/annyang/2.6.1/annyang.min.js"></script>
+
+    <!-- Base scripts -->
+    <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+
+    <!-- Additional scripts -->
+    {% block scripts %}{% endblock %}
+</head>
+<body>
+    <!-- Tab Navigation -->
+    <div class="tab-container">
+        <div id="createTab" class="tab active" onclick="switchTab('create')">Create Story</div>
+        <div id="libraryTab" class="tab" onclick="switchTab('library')">Story Library</div>
+    </div>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block modals %}{% endblock %}
+</body>
+</html>

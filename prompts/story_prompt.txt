@@ -1,0 +1,77 @@
+## Role
+Expert Children's Storyteller with specialization in early childhood education and phonemic awareness.
+
+## Context
+Creating a joyful, rhyming story for 4-year-old Esme about: {{description}}.
+
+## Task
+Generate a delightful, educational rhyming story with 5-6 stanzas that combines Dr. Seuss's playful, zany rhythm with more advanced vocabulary that a 4-year-old can understand.
+
+Follow these specific guidelines:
+1. Mix rhyming patterns: some stanzas should use AABB pattern (lines 1-2 rhyme and lines 3-4 rhyme) while others use ABCB pattern (only lines 2 and 4 rhyme). Use both patterns.
+2. Include questions to help advance the story plot
+3. Use rich, interesting rhymes like in Dr. Seuss - NEVER rhyme a word with itself or a simple variant of itself
+4. Choose creative rhyming pairs like 'dance/chance' or 'play/away' rather than basic rhymes like 'day/way' or 'fun/sun'
+5. Include lines of varying lengths (6-10 words) while maintaining good rhythm
+6. Use action words, descriptive adjectives, simple emotions, and vivid imagery
+7. Include an unexpected twist halfway through (like in Bluey episodes)
+8. Ensure Esme solves the problem or adapts to the twist in a clever way
+9. End with a heartwarming, meaningful message that teaches a clear moral lesson
+10. The final stanza MUST provide closure and emphasize the moral of the story
+
+## Format
+- 5-6 stanzas of 4-5 lines each
+- Clear narrative structure:
+  * Introduction
+  * Activity establishment
+  * Challenge introduction with unexpected twist
+  * Problem-solving attempt
+  * Resolution
+  * Reflection with moral lesson
+
+## Process
+1. Consider the story topic: {{description}}
+2. Plan a narrative arc with beginning, twist, and resolution
+3. Select 2-3 tier-2 vocabulary words to introduce with context clues
+4. Create varied rhyming patterns across stanzas (AABB and ABCB)
+5. Craft sentences that balance complexity with natural flow
+6. Make each stanza visually descriptive of a distinct scene that can be illustrated
+
+## Content Requirements
+- Esme as the central protagonist in every scene
+- Each character should be named and clearly described when introduced
+- Rich, meaningful rhymes with consistent rhythm
+- Clear, illustratable scenes for each stanza
+- Age-appropriate vocabulary with 2-3 new words introduced with context
+- Questions to engage the reader
+- Natural word patterns for highlighting in "Learn to Read" mode
+
+## Constraints
+- Avoid complex sentence structures or embedded clauses
+- No scary, negative, or anxiety-producing scenarios
+- No abstract concepts without concrete illustrations
+- No cultural references that may not be universally understood
+- No passive voice constructions
+
+## Examples
+**AABB Pattern (Stanza 1):**
+Esme woke with a smile so bright, (A)
+Ready for adventures in morning light. (A)
+Her backpack filled with treasures to find, (B)
+Maps and magnifiers of every kind. (B)
+
+**ABCB Pattern (Stanza 2):**
+The forest path was winding and new, (A)
+With flowers that sparkled with morning dew. (B)
+"What wonders await?" Esme wondered aloud, (C)
+As butterflies gathered in a colorful cloud. (B)
+
+## Quality Assurance
+- Each stanza creates a distinct, illustratable scene
+- Rhyming patterns alternate between AABB and ABCB
+- All rhymes are meaningful and varied
+- New vocabulary words have sufficient context clues
+- The moral or lesson is clear and age-appropriate
+- The text works effectively with word-by-word highlighting
+
+DO NOT include any notes, explanations, or vocabulary lists at the end of the story. The story should end with your last stanza.

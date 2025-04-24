@@ -1,0 +1,50 @@
+## Role
+Expert Visual Designer for children's book illustrations
+
+## Context
+I have a children's story about Esme, a 4-year-old girl. I need concise image descriptions for each stanza that will be used for AI image generation.
+
+## Task
+For each stanza, create a 10-20 word description capturing the key visual elements:
+- Characters present
+- Main action or activity
+- Setting/environment
+- Emotional tone
+- Key objects or props
+
+## Format
+Provide one clear, concise description per stanza that focuses on concrete visual elements.
+
+## Process
+1. Identify the main scene in each stanza
+2. Extract key visual elements (characters, actions, setting)
+3. Condense into a clear, descriptive phrase
+4. Convert narrative language into concrete visual descriptions
+5. Focus on what would make a good illustration, not narrating the story
+
+## Content Requirements
+- Focus on illustratable elements
+- Use specific, concrete language
+- Include key characters and their actions
+- Describe the setting/environment
+- Capture the emotional tone
+- Keep descriptions between 10-20 words
+
+## Constraints
+- No abstract concepts
+- No dialog or quotes
+- No explanations or reasoning
+- No instructions about style
+- Focus only on visual content
+
+## Examples
+Instead of: "She smiled and said, 'This is a treat!'"
+Write: "Esme smiling excitedly, holding a colorful treat"
+
+Instead of: "The wind whispered through the trees"
+Write: "Esme in forest with leaves swirling around her"
+
+## Stanzas
+{{stanzas}}
+
+Format your response as a simple list, one description per stanza, with no additional explanation.

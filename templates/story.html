@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Esme's Adventure{% endblock %}
+
+{% block css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/reader.css') }}">
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/reader.js') }}" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="story-container">
+    <h2>Esme's Latest Adventure</h2>
+
+    <!-- Save Story Button -->
+    <button onclick="showSaveStoryModal()" class="action-button">Save Story</button>
+
+    <!-- Reading Mode Selector -->
+    <div class="reading-mode-selector">
+        <div id="normalModeButton" class="reading-mode-button active" onclick="switchReadingMode('normal')">Normal Reading</div>
+        <div id="learningModeButton" class="reading-mode-button" onclick="switchReadingMode('learning')">Learning to Read</div>
+    </div>
+
+    <!-- Voice Selection -->
+    <div class="voice-control">
+        <label for="voiceSelect">Voice:</label>
+        <select id="voiceSelect">
+            <option value="" disabled selected>Loading voices...</option>
+        </select>
+    </div>
+
+    <!-- Reading Speed Controls -->
+    <div class="speed-controls">
+        <p>Reading Speed:</p>
+        <div class="speed-buttons">
+            <button class="speed-btn" data-speed="0.5" onclick="updateReadingSpeed(0.5)">Slow</button>
+            <button class="speed-btn active" data-speed="1.0" onclick="updateReadingSpeed(1.0)">Normal</button>
+            <button class="speed-btn" data-speed="1.5" onclick="updateReadingSpeed(1.5)">Fast</button>
+        </div>
+    </div>
+
+    <!-- Story Pages -->
+    {% for page in story %}
+        <div class="page">
+            <img src="{{ page.image }}" alt="Page {{ page.page }}">
+
+            <!-- Original Content -->
+            <div class="original-content">
+                {% for stanza in page.stanzas %}
+                    <p class="stanza" id="stanza-{{ page.page }}-{{ stanza.index }}">
+                        {% for line in stanza.lines %}
+                            {% for word in line.split() %}
+                                <span class="word">{{ word }}</span>
+                            {% endfor %}
+                            {% if not loop.last %}<br>{% endif %}
+                        {% endfor %}
+                    </p>
+                {% endfor %}
+            </div>
+
+            <!-- Simplified Content for Learn to Read Mode -->
+            <div class="simplified-content" style="display: none;">
+                {% for stanza in page.simplified_stanzas %}
+                    <p class="stanza" id="simple-stanza-{{ page.page }}-{{ stanza.index }}">
+                        {% for line in stanza.lines %}
+                            {% for word in line.split() %}
+                                <span class="word">{{ word }}</span>
+                            {% endfor %}
+                            {% if not loop.last %}<br>{% endif %}
+                        {% endfor %}
+                    </p>
+                {% endfor %}
+            </div>
+
+            {% if loop.last %}
+                <p class="end">The End</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+
+    <!-- Back to Home Button -->
+    <div class="action-buttons">
+        <a href="/" class="action-button secondary">Create New Story</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Save Story Modal -->
+<div id="saveStoryModal" class="modal">
+    <div class="modal-content">
+        <h2>Save Your Story</h2>
+        <input type="text" id="storyTitle" placeholder="Enter a title for your story" required>
+        <div class="modal-buttons">
+            <button onclick="saveStoryWithTitle()" class="action-button">Save</button>
+            <button onclick="hideSaveStoryModal()" class="action-button secondary">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Esme's Story Generator{% endblock %}
+
+{% block content %}
+<!-- Create Story Section -->
+<div id="createContainer">
+    <div class="form-container">
+        <h1>Esme's Story Maker</h1>
+        <form method="POST" action="/generate">
+            <textarea name="description" placeholder="Tell me about Esme's adventure today (e.g., Esme collects shells at the beach with family)" required></textarea>
+            <input type="text" name="character_description" placeholder="Describe Esme (e.g., 4 year old girl with brown, curly hair, blue eyes, fair skin with a few freckles on her nose)" required>
+            <button type="submit" id="generateBtn">Generate Story</button>
+        </form>
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Library Section -->
+<div id="libraryContainer" style="display: none;">
+    <div class="library-container">
+        <h1>Your Story Library</h1>
+        <div id="libraryContent">
+            <!-- Stories will be loaded here -->
+            <p>Loading stories...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up form submission handler
+        const storyForm = document.querySelector('form[action="/generate"]');
+        if (storyForm) {
+            storyForm.addEventListener('submit', function(event) {
+                const submitButton = document.getElementById('generateBtn');
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<span class="loading-spinner"></span> Generating...';
+            });
+        }
+    });
+</script>
+{% endblock %}
