@@ -1,4 +1,3 @@
-
 import requests
 import logging
 
@@ -54,7 +53,20 @@ class SpeechService:
             raise
 
     def generate_speech(self, text, voice_id, reading_mode="normal", reading_speed=1.0):
-        """Generate speech from text."""
+        """Generate speech from text.
+
+        Args:
+            text (str): Text to convert to speech
+            voice_id (str): ID of the voice to use
+            reading_mode (str): Reading mode (normal or learning)
+            reading_speed (float): Speed multiplier for reading
+
+        Returns:
+            tuple: (generator, headers) Stream of audio data and response headers
+
+        Raises:
+            Exception: If API request fails
+        """
         if not self.api_key:
             logging.error("ElevenLabs API key not set - cannot generate speech")
             raise Exception("ElevenLabs API key not configured")
@@ -70,29 +82,26 @@ class SpeechService:
 
             mode_settings = self.reading_settings[reading_mode]
 
+            # Calculate word count for timing estimation
+            word_count = len(clean_text.split())
+
             # Apply speed multiplier to base speaking rate
             effective_speaking_rate = mode_settings['speaking_rate'] * float(reading_speed)
 
-            # Clamp to reasonable range for ElevenLabs API - IMPORTANT: minimum is 0.5
-            effective_speaking_rate = max(0.5, min(4.0, effective_speaking_rate))
-
-            # Log detailed information for debugging
-            logging.info(f"Speech synthesis: mode={reading_mode}, speed={reading_speed}, effective_rate={effective_speaking_rate}")
+            # Clamp to reasonable range for ElevenLabs API (minimum 0.7 for stability)
+            effective_speaking_rate = max(0.7, min(4.0, effective_speaking_rate))
 
             # Calculate client-side playback rate for additional slowdown if needed
             client_playback_rate = mode_settings['playback_rate']
-            if effective_speaking_rate < 0.5:  # If we wanted slower than ElevenLabs allows
-                # Scale down the browser playback rate to compensate
-                additional_slowdown = effective_speaking_rate / 0.5
-                client_playback_rate *= additional_slowdown
-                effective_speaking_rate = 0.5  # Use ElevenLabs minimum
+            if reading_mode == 'learning' and effective_speaking_rate < 0.7:
+                # We want to use a minimum of 0.7 for the API to avoid quality issues
+                # and use the browser's playback rate for further slowing down
+                client_playback_rate = client_playback_rate * (effective_speaking_rate / 0.7)
+                effective_speaking_rate = 0.7
 
-            # Add custom headers for the client-side to use
-            response_headers = {
-                'X-Reading-Mode': reading_mode,
-                'X-Effective-Rate': str(effective_speaking_rate),
-                'X-Playback-Rate': str(client_playback_rate)
-            }
+            # Log detailed information for debugging
+            logging.info(f"Speech synthesis: mode={reading_mode}, speed={reading_speed}")
+            logging.info(f"Effective API rate: {effective_speaking_rate}, Client playback rate: {client_playback_rate}")
 
             url = f"{self.base_url}/text-to-speech/{voice_id}/stream"
             headers = {
@@ -109,13 +118,38 @@ class SpeechService:
                     "similarity_boost": 0.7,
                     "style": 0.0,
                     "use_speaker_boost": True,
-                    "speed": effective_speaking_rate  # This now has a minimum of 0.5
+                    "speed": effective_speaking_rate
                 }
+            }
+
+            # Add custom headers for the client-side to use
+            response_headers = {
+                'X-Reading-Mode': reading_mode,
+                'X-Effective-Rate': str(effective_speaking_rate),
+                'X-Playback-Rate': str(client_playback_rate),
+                'X-Word-Count': str(word_count)
             }
 
             # Make the API request
             response = requests.post(url, headers=headers, json=data, stream=True)
-            response.raise_for_status()
+
+            # Check for API errors
+            if response.status_code != 200:
+                error_message = f"ElevenLabs API error: {response.status_code}"
+                try:
+                    error_data = response.json()
+                    error_message += f" - {error_data.get('detail', 'Unknown error')}"
+                except:
+                    error_message += f" - {response.text[:100]}"
+
+                logging.error(error_message)
+
+                # Return empty generator with error info
+                def empty_generator():
+                    yield b""
+
+                response_headers['X-Error'] = error_message
+                return empty_generator(), response_headers
 
             # Return a generator that yields chunks of audio data
             def generate():

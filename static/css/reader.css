@@ -21,25 +21,14 @@
     z-index: 1;
 }
 
-/* Special word types styling */
-.word.sight-word {
-    color: #4ecdc4;
-}
-
-.word.vocabulary-word {
-    border-bottom: 2px dotted #ff6f61;
-}
-
-.word.sight-word.highlight {
-    background: #c3e8ff;
-}
-
-.word.vocabulary-word.highlight {
-    background: #ffd3c3; 
-}
-
-.word.regular-word.highlight {
+/* Simplified word highlighting - all words use the same highlight style */
+.word.highlight {
     background: #d8c3ff;
+    font-weight: bold;
+    font-size: 1.3em; 
+    padding: 2px 5px; 
+    border-radius: 5px; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 /* Visual cues for different word types in learning mode */

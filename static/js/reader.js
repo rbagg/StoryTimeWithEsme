@@ -348,12 +348,95 @@ async function readStanza(stanzaId) {
 }
 
 /**
- * Start highlighting words with timing based on word complexity
+ * Start highlighting words with improved synchronization to speech
  * @param {HTMLCollection} words - Collection of word elements to highlight
  */
 function startWordHighlighting(words) {
     let currentIndex = 0;
     isHighlighting = true;
+
+    // Calculate the total text length and approximate duration
+    const totalWords = words.length;
+    const audioElement = currentAudio;
+
+    if (!audioElement || !audioElement.duration) {
+        console.warn("Cannot determine audio duration - using fallback timing");
+        // Call the legacy timing function if we can't determine the audio duration
+        startHighlightingWithFallbackTiming(words);
+        return;
+    }
+
+    // Get the total audio duration in milliseconds
+    const totalDuration = audioElement.duration * 1000;
+
+    // Calculate average time per word, with a bit of buffer at the end
+    const timePerWord = totalDuration / (totalWords + 1);
+    console.log(`Audio duration: ${totalDuration}ms, Words: ${totalWords}, Average time per word: ${timePerWord}ms`);
+
+    // Set up a timeUpdate listener to sync highlighting with audio
+    let lastTimeUpdatePosition = 0;
+
+    function updateHighlighting() {
+        // Check if audio is still playing
+        if (!audioElement || audioElement.paused || audioElement.ended) {
+            return;
+        }
+
+        // Calculate which word should be highlighted based on current audio position
+        const currentTime = audioElement.currentTime * 1000;
+        const estimatedWordIndex = Math.floor(currentTime / timePerWord);
+
+        // Only update if needed (prevents jitter and improves performance)
+        if (estimatedWordIndex !== currentIndex && estimatedWordIndex < words.length) {
+            // Clear all highlights
+            document.querySelectorAll('.word.highlight').forEach(word => {
+                word.classList.remove('highlight');
+            });
+
+            // Update the index and add highlight
+            currentIndex = estimatedWordIndex;
+            words[currentIndex].classList.add('highlight');
+
+            // Scroll word into view if needed
+            words[currentIndex].scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center', 
+                inline: 'nearest' 
+            });
+        }
+
+        // Continue updating
+        if (!audioElement.paused && !audioElement.ended) {
+            requestAnimationFrame(updateHighlighting);
+        } else {
+            // Clean up when done
+            document.querySelectorAll('.word.highlight').forEach(word => {
+                word.classList.remove('highlight');
+            });
+            isHighlighting = false;
+        }
+    }
+
+    // Start the highlighting update loop
+    requestAnimationFrame(updateHighlighting);
+
+    // Attach additional safety timeUpdate listener
+    audioElement.addEventListener('timeupdate', function() {
+        // If no updates for 1 second, restart the update loop
+        const currentPosition = audioElement.currentTime;
+        if (Math.abs(currentPosition - lastTimeUpdatePosition) > 1.0) {
+            lastTimeUpdatePosition = currentPosition;
+            requestAnimationFrame(updateHighlighting);
+        }
+    });
+}
+
+/**
+ * Fallback timing method when audio duration can't be determined
+ * @param {HTMLCollection} words - Collection of word elements to highlight
+ */
+function startHighlightingWithFallbackTiming(words) {
+    let currentIndex = 0;
 
     function highlightNext() {
         // If audio has ended or was paused, stop highlighting
@@ -381,26 +464,16 @@ function startWordHighlighting(words) {
                 inline: 'nearest' 
             });
 
-            // Determine word type for additional styling
-            const wordText = words[currentIndex].textContent.trim().toLowerCase();
-            const wordType = classifyWordType(wordText);
-
-            // Add word type class
-            words[currentIndex].classList.add(wordType);
-
-            // Calculate timing based on word length and current mode settings
+            // Simplified timing based on word length only
             const wordLength = words[currentIndex].textContent.length;
-            const settings = READING_SPEED_SETTINGS[currentReadingMode];
 
-            // Base timing calculation
-            const baseTime = settings.base_duration;
-            const charTime = settings.char_duration * wordLength;
+            // Faster timing for better synchronization
+            // Base duration depends on reading mode
+            const baseDuration = currentReadingMode === 'learning' ? 400 : 200;
+            const charFactor = currentReadingMode === 'learning' ? 40 : 25;
 
-            // Calculate final duration with speed adjustment
-            const highlightDuration = Math.max(300, (baseTime + charTime)) / readingSpeed;
-
-            // Log detailed timing for debugging
-            console.log(`Word: "${words[currentIndex].textContent}", type: ${wordType}, duration: ${highlightDuration.toFixed(0)}ms`);
+            // Calculate adjusted duration
+            const highlightDuration = baseDuration + (wordLength * charFactor);
 
             // Schedule next word
             currentIndex++;
