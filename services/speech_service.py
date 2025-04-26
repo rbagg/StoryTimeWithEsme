@@ -114,8 +114,8 @@ class SpeechService:
                 "text": clean_text,
                 "model_id": "eleven_multilingual_v2",
                 "voice_settings": {
-                    "stability": 0.6,
-                    "similarity_boost": 0.7,
+                    "stability": 0.5,
+                    "similarity_boost": 0.9,
                     "style": 0.0,
                     "use_speaker_boost": True,
                     "speed": effective_speaking_rate
