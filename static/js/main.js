@@ -5,8 +5,6 @@
 
 // Global variables
 let currentTab = 'create';
-let currentReadingMode = 'normal';
-let readingSpeed = 1.0; // Default speed multiplier
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -54,20 +52,6 @@ function switchTab(tab) {
  * Load user preferences from localStorage
  */
 function loadUserPreferences() {
-    // Load reading mode
-    const savedMode = localStorage.getItem('currentReadingMode');
-    if (savedMode) {
-        currentReadingMode = savedMode;
-        console.log(`Restored reading mode: ${currentReadingMode}`);
-    }
-
-    // Load reading speed
-    const savedSpeed = localStorage.getItem('readingSpeed');
-    if (savedSpeed) {
-        readingSpeed = parseFloat(savedSpeed);
-        console.log(`Restored reading speed: ${readingSpeed}`);
-    }
-
     // Load current tab
     const savedTab = localStorage.getItem('currentTab');
     if (savedTab) {
@@ -247,6 +231,20 @@ async function saveStoryWithTitle() {
         alert(`Error saving story: ${error.message}`);
     }
 }
+
+// Handle form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const storyForm = document.querySelector('form[action="/generate"]');
+    if (storyForm) {
+        storyForm.addEventListener('submit', function() {
+            const submitButton = this.querySelector('button[type="submit"]');
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<span class="loading-spinner"></span> Generating...';
+            }
+        });
+    }
+});
 
 // Close modal when clicking outside the content
 window.onclick = function(event) {

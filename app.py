@@ -57,7 +57,7 @@ READING_SPEED_SETTINGS = {
     "learning": {
         "base_duration": 700,    # ms per word base time
         "char_duration": 120,    # ms per character
-        "speaking_rate": 0.7,    # Slowest possible ElevenLabs speed
+        "speaking_rate": 0.7,    # Minimum viable ElevenLabs speed
         "playback_rate": 0.5     # Additional client-side slowdown
     }
 }
@@ -189,17 +189,18 @@ def read_text():
         raw_text = data['text']
         voice_id = data['voice']
         reading_mode = data.get('reading_mode', 'normal')
-        reading_speed = data.get('reading_speed', 1.0)
+
+        # We no longer need the reading_speed parameter, but accept it for backward compatibility
+        reading_speed = 1.0  # Fixed value since we're removing speed selectors
 
         # Log the request details
-        logging.info(f"Read request: mode={reading_mode}, speed={reading_speed}, text_length={len(raw_text)}")
+        logging.info(f"Read request: mode={reading_mode}, text_length={len(raw_text)}")
 
         # Generate audio stream from ElevenLabs
         audio_stream, response_headers = speech_service.generate_speech(
             raw_text, 
             voice_id, 
-            reading_mode, 
-            reading_speed
+            reading_mode
         )
 
         return app.response_class(audio_stream, mimetype='audio/mpeg', headers=response_headers)
@@ -300,6 +301,20 @@ if __name__ == '__main__':
     os.makedirs('static/js', exist_ok=True)
     os.makedirs('prompts', exist_ok=True)
     os.makedirs('services', exist_ok=True)
+    os.makedirs('templates', exist_ok=True)
+
+    # Check if prompt files exist, and create them if they don't
+    prompt_files = {
+        'story_prompt.txt': 'prompts/story_prompt.txt',
+        'image_prompt.txt': 'prompts/image_prompt.txt',
+        'simplified_story_prompt.txt': 'prompts/simplified_story_prompt.txt',
+        'image_description_prompt.txt': 'prompts/image_description_prompt.txt',
+        'reader_prompt.txt': 'prompts/reader_prompt.txt'
+    }
+
+    for name, path in prompt_files.items():
+        if not os.path.exists(path):
+            logging.warning(f"Prompt file {path} not found, will be created on first use")
 
     print("Starting Esme's Story Generator...")
     print(f"Claude API Key status: {'Available' if CLAUDE_API_KEY else 'Missing'}")

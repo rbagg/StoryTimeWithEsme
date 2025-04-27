@@ -3,10 +3,11 @@
  * Handles the "Learn to Read" mode functionality
  */
 
-// Global variables for tracking audio and highlighting state
+// Global variables 
 let currentAudio = null;
 let currentHighlightInterval = null;
 let isHighlighting = false;
+let currentReadingMode = 'normal';
 
 // Reading mode settings - this should match the backend Python constants
 const READING_SPEED_SETTINGS = {
@@ -19,8 +20,8 @@ const READING_SPEED_SETTINGS = {
     "learning": {
         "base_duration": 700,  // ms per word base time
         "char_duration": 120,  // ms per character
-        "speaking_rate": 0.7,  // Slower for ElevenLabs
-        "playback_rate": 0.5   // Slower client-side playback
+        "speaking_rate": 0.7,  // Minimum viable for ElevenLabs
+        "playback_rate": 0.5   // Additional client-side slowdown
     }
 };
 
@@ -31,10 +32,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Restore reading mode from localStorage
     const savedMode = localStorage.getItem('currentReadingMode') || 'normal';
     switchReadingMode(savedMode);
-
-    // Restore reading speed from localStorage
-    const savedSpeed = localStorage.getItem('readingSpeed') || '1.0';
-    updateReadingSpeed(parseFloat(savedSpeed));
 
     // Fetch available voices
     loadVoices();
@@ -102,34 +99,15 @@ function switchReadingMode(mode) {
         el.style.display = mode === 'learning' ? 'block' : 'none';
     });
 
-    // Log the mode change and current settings
+    // Log the mode change
     console.log(`Reading mode switched from ${previousMode} to ${mode}`);
+    console.log(`Using reading settings: ${JSON.stringify(READING_SPEED_SETTINGS[mode])}`);
 
     // Re-attach stanza listeners after switching mode
     attachStanzaListeners();
 
     // Store the current mode in localStorage to persist between page loads
     localStorage.setItem('currentReadingMode', mode);
-}
-
-/**
- * Update the reading speed
- * @param {number} value - Speed multiplier (0.5 = half speed, 1.0 = normal, 1.5 = faster)
- */
-function updateReadingSpeed(value) {
-    readingSpeed = parseFloat(value);
-
-    // Update button states
-    document.querySelectorAll('.speed-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (parseFloat(btn.dataset.speed) === value) {
-            btn.classList.add('active');
-        }
-    });
-
-    // Store the speed value
-    localStorage.setItem('readingSpeed', value);
-    console.log(`Reading speed updated to: ${readingSpeed}x`);
 }
 
 /**
@@ -246,12 +224,14 @@ async function readStanza(stanzaId) {
         // Show loading indicator
         stanza.classList.add('loading');
 
+        // Get the mode-specific settings
+        const modeSettings = READING_SPEED_SETTINGS[currentReadingMode];
+
         // Prepare the request
         const requestBody = { 
             text, 
             voice: voiceSelect.value,
-            reading_mode: currentReadingMode,
-            reading_speed: readingSpeed
+            reading_mode: currentReadingMode
         };
 
         console.log('Sending read request:', requestBody);
@@ -267,6 +247,14 @@ async function readStanza(stanzaId) {
         // Remove loading indicator
         stanza.classList.remove('loading');
 
+        // Check for error in response headers
+        const errorMessage = response.headers.get('X-Error');
+        if (errorMessage) {
+            console.error('API Error:', errorMessage);
+            alert(`Text-to-speech error: ${errorMessage}`);
+            return;
+        }
+
         if (!response.ok) {
             const errorText = await response.text();
             console.error('API error:', errorText);
@@ -274,10 +262,10 @@ async function readStanza(stanzaId) {
         }
 
         // Extract custom headers with reading settings
-        const effectiveRate = response.headers.get('X-Effective-Rate') || '1.0';
-        const playbackRate = response.headers.get('X-Playback-Rate') || '1.0';
+        const playbackRate = parseFloat(response.headers.get('X-Playback-Rate') || modeSettings.playback_rate);
+        const wordCount = parseInt(response.headers.get('X-Word-Count') || words.length);
 
-        console.log(`Server returned effective rate: ${effectiveRate}, playback rate: ${playbackRate}`);
+        console.log(`Server returned playback rate: ${playbackRate}, word count: ${wordCount}`);
 
         const audioBlob = await response.blob();
         if (!audioBlob || audioBlob.size === 0) {
@@ -287,10 +275,11 @@ async function readStanza(stanzaId) {
         const audioUrl = URL.createObjectURL(audioBlob);
         const audio = new Audio(audioUrl);
 
-        // Configure audio
-        audio.playbackRate = parseFloat(playbackRate);
+        // Set the playback rate for the browser's audio element
+        audio.playbackRate = playbackRate;
+        console.log(`Setting browser playback rate to: ${playbackRate}`);
 
-        // Set up error handling
+        // Configure error handling
         audio.onerror = (e) => {
             console.error('Audio playback error:', e);
             stanza.classList.remove('loading');
@@ -488,43 +477,4 @@ function startHighlightingWithFallbackTiming(words) {
 
     // Start highlighting the first word
     highlightNext();
-}
-
-/**
- * Classify a word as sight word, vocabulary word, or regular word
- * @param {string} word - The word to classify
- * @returns {string} - Classification of the word
- */
-function classifyWordType(word) {
-    // Clean the word for analysis
-    const cleanWord = word.replace(/[^\w\s]/g, '').toLowerCase();
-
-    // Simple list of common sight words for early readers
-    const sightWords = [
-        'a', 'and', 'away', 'big', 'blue', 'can', 'come', 'down', 'find', 'for', 'funny',
-        'go', 'help', 'here', 'i', 'in', 'is', 'it', 'jump', 'little', 'look', 'make',
-        'me', 'my', 'not', 'one', 'play', 'red', 'run', 'said', 'see', 'the', 'three',
-        'to', 'two', 'up', 'we', 'where', 'yellow', 'you', 'all', 'am', 'are', 'at', 'ate',
-        'be', 'black', 'brown', 'but', 'came', 'did', 'do', 'eat', 'four', 'get', 'good',
-        'have', 'he', 'into', 'like', 'must', 'new', 'no', 'now', 'on', 'our', 'out', 'please',
-        'pretty', 'ran', 'ride', 'saw', 'say', 'she', 'so', 'soon', 'that', 'there', 'they',
-        'this', 'too', 'under', 'want', 'was', 'well', 'went', 'what', 'white', 'who', 'will',
-        'with', 'yes'
-    ];
-
-    // Check if it's a sight word
-    if (sightWords.includes(cleanWord)) {
-        return 'sight-word';
-    }
-
-    // Check for vocabulary word characteristics
-    // Words with more than 7 letters or uncommon patterns
-    if (cleanWord.length > 7 || 
-        /[aeiou]{3}/.test(cleanWord) || 
-        /(ph|gh|th|wh|qu|sc|ck|dge|tch|sch)/.test(cleanWord)) {
-        return 'vocabulary-word';
-    }
-
-    // Default classification
-    return 'regular-word';
 }

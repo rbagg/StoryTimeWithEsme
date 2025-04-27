@@ -50,16 +50,16 @@ class SpeechService:
 
         except Exception as e:
             logging.error(f"Error fetching voices: {e}")
-            raise
+            return []
 
-    def generate_speech(self, text, voice_id, reading_mode="normal", reading_speed=1.0):
+    def generate_speech(self, text, voice_id, reading_mode="normal", reading_speed=None):
         """Generate speech from text.
 
         Args:
             text (str): Text to convert to speech
             voice_id (str): ID of the voice to use
             reading_mode (str): Reading mode (normal or learning)
-            reading_speed (float): Speed multiplier for reading
+            reading_speed (float, optional): Deprecated parameter kept for backward compatibility
 
         Returns:
             tuple: (generator, headers) Stream of audio data and response headers
@@ -85,22 +85,21 @@ class SpeechService:
             # Calculate word count for timing estimation
             word_count = len(clean_text.split())
 
-            # Apply speed multiplier to base speaking rate
-            effective_speaking_rate = mode_settings['speaking_rate'] * float(reading_speed)
+            # Use mode-specific speaking rate
+            effective_speaking_rate = mode_settings['speaking_rate']
 
-            # Clamp to reasonable range for ElevenLabs API (minimum 0.7 for stability)
-            effective_speaking_rate = max(0.7, min(4.0, effective_speaking_rate))
-
-            # Calculate client-side playback rate for additional slowdown if needed
-            client_playback_rate = mode_settings['playback_rate']
+            # Learning mode needs special handling due to ElevenLabs API limitations
+            # ElevenLabs minimum speed is 0.5, but we want our learning mode to be slower
             if reading_mode == 'learning' and effective_speaking_rate < 0.7:
-                # We want to use a minimum of 0.7 for the API to avoid quality issues
-                # and use the browser's playback rate for further slowing down
-                client_playback_rate = client_playback_rate * (effective_speaking_rate / 0.7)
-                effective_speaking_rate = 0.7
+                # Use 0.7 as minimum ElevenLabs speed for quality
+                # and let the browser handle additional slowdown
+                client_playback_rate = mode_settings['playback_rate']
+                effective_speaking_rate = 0.7  # Minimum viable for ElevenLabs
+            else:
+                client_playback_rate = mode_settings['playback_rate']
 
             # Log detailed information for debugging
-            logging.info(f"Speech synthesis: mode={reading_mode}, speed={reading_speed}")
+            logging.info(f"Speech synthesis: mode={reading_mode}")
             logging.info(f"Effective API rate: {effective_speaking_rate}, Client playback rate: {client_playback_rate}")
 
             url = f"{self.base_url}/text-to-speech/{voice_id}/stream"
@@ -114,8 +113,8 @@ class SpeechService:
                 "text": clean_text,
                 "model_id": "eleven_multilingual_v2",
                 "voice_settings": {
-                    "stability": 0.5,
-                    "similarity_boost": 0.9,
+                    "stability": 0.6,
+                    "similarity_boost": 0.7,
                     "style": 0.0,
                     "use_speaker_boost": True,
                     "speed": effective_speaking_rate
@@ -125,7 +124,6 @@ class SpeechService:
             # Add custom headers for the client-side to use
             response_headers = {
                 'X-Reading-Mode': reading_mode,
-                'X-Effective-Rate': str(effective_speaking_rate),
                 'X-Playback-Rate': str(client_playback_rate),
                 'X-Word-Count': str(word_count)
             }
@@ -161,4 +159,12 @@ class SpeechService:
 
         except Exception as e:
             logging.error(f"Error generating speech: {e}")
-            raise Exception(f"Failed to generate speech: {str(e)}")
+
+            # Return an empty audio stream with error message in headers
+            def empty_generator():
+                yield b""
+
+            response_headers = {
+                'X-Error': f"Failed to generate speech: {str(e)}"
+            }
+            return empty_generator(), response_headers
