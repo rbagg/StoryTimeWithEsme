@@ -8,7 +8,7 @@ import logging
 from PIL import Image
 
 class ImageService:
-    """Complete image service with photo reference support for better character consistency."""
+    """Complete image service with photo reference support and character diversity."""
 
     def __init__(self, api_key):
         self.api_key = api_key
@@ -33,7 +33,7 @@ class ImageService:
         return self.character_profile
 
     def generate_story_image_with_photo(self, scene_description, page_number, story_context=""):
-        """Generate image using photo reference for better consistency"""
+        """Generate image using photo reference for better consistency - FIXED VERSION"""
 
         if not self.has_reference_photo():
             # Fallback to text-only generation
@@ -47,19 +47,28 @@ class ImageService:
             with open(self.reference_photo_path, 'rb') as image_file:
                 photo_data = base64.b64encode(image_file.read()).decode()
 
-            # Create enhanced prompt for image-to-image
-            prompt = f"""Transform this photo into a children's book illustration style showing: {scene_description}
+            # Create enhanced prompt for image-to-image with character diversity
+            prompt = f"""Create a cinematic children's book illustration showing: {scene_description}
 
-Style requirements:
+CHARACTER REQUIREMENTS:
+- Esme: Keep her facial features, hair, and appearance EXACTLY the same as in the reference photo
+- Other characters (if present): Make them clearly different from Esme
+  * Parents: Adult height, different hair colors, mature faces
+  * Other children: Different hair (blonde, black, red), different clothing, different facial features
+  * Animals: Cute kawaii style but each species distinct
+
+STYLE REQUIREMENTS:
 - Soft pastel children's book art style
-- Keep the character's facial features and appearance EXACTLY the same
+- Cinematic composition with dynamic angles
+- Rich environmental details
+- Professional illustration quality
 - Whimsical, magical storybook environment
-- Professional children's book illustration quality
-- Scene: {scene_description}
 
-Maintain character consistency while changing the scene and background."""
+SCENE: {scene_description}
 
-            # Use Stability AI's image-to-image endpoint
+Maintain Esme's exact appearance while ensuring all other characters look distinctly different."""
+
+            # FIXED: Use correct endpoint and parameters
             response = requests.post(
                 "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/image-to-image",
                 headers={
@@ -70,14 +79,14 @@ Maintain character consistency while changing the scene and background."""
                     "init_image": photo_data,
                     "text_prompts": [
                         {"text": prompt, "weight": 1.0},
-                        {"text": "realistic photography, adult features, scary, dark", "weight": -1.0}
+                        {"text": "realistic photography, adult features on child, all characters looking identical, scary, dark, blurry", "weight": -1.0}
                     ],
-                    "image_strength": 0.3,  # Keep character features but allow scene changes
-                    "cfg_scale": 8,
-                    "height": 896,
-                    "width": 1152,
+                    "image_strength": 0.35,  # FIXED: Slightly higher to allow more scene variation
+                    "cfg_scale": 7,  # FIXED: Slightly lower for better adherence
+                    "height": 1024,  # FIXED: Use standard dimensions
+                    "width": 1024,   # FIXED: Square format works better
                     "samples": 1,
-                    "steps": 30
+                    "steps": 25  # FIXED: Reduced steps for stability
                 },
                 timeout=60
             )
@@ -90,10 +99,10 @@ Maintain character consistency while changing the scene and background."""
                 image_path = f"static/images/story_page_{page_number}_{image_hash[:8]}.jpg"
                 self._save_and_compress_image(image_data, image_path)
 
-                logging.info(f"Generated image with photo reference for page {page_number}")
+                logging.info(f"✓ Generated image with photo reference for page {page_number}")
                 return f"/{image_path}"
             else:
-                logging.warning(f"Photo-based generation failed: {response.status_code}")
+                logging.warning(f"Photo-based generation failed: {response.status_code} - {response.text}")
                 # Fallback to text-only
                 return self.generate_story_image_text_only(scene_description, page_number, story_context)
 
@@ -103,19 +112,37 @@ Maintain character consistency while changing the scene and background."""
             return self.generate_story_image_text_only(scene_description, page_number, story_context)
 
     def generate_story_image_text_only(self, scene_description, page_number, story_context=""):
-        """Fallback text-only generation when no photo available"""
+        """Enhanced text-only generation with character diversity"""
 
         character_desc = self.character_profile['description'] if self.character_profile else "4 years old, curly brown hair, light skin, blue-green eyes"
 
-        prompt = f"""Soft pastel children's book illustration: {scene_description}
+        # Enhanced prompt with character diversity
+        prompt = f"""Cinematic children's book illustration: {scene_description}
 
-Character: Esme is exactly {character_desc}. She must appear IDENTICAL in every image.
+MAIN CHARACTER - Esme:
+- Exactly {character_desc}
+- She must appear IDENTICAL in every image
+- Always the focal point
 
-Style: Whimsical children's book art, soft pastels, magical storybook quality"""
+OTHER CHARACTERS (if present):
+- Parents: Adult height, different hair colors from Esme, mature faces
+- Dad: Tall adult man, different hair color, kind expression
+- Mum: Adult woman, different hair style from Esme, warm smile
+- Other children: Clearly different - if Esme has curly brown hair, give others straight blonde, black braids, red pigtails, etc.
+- Animals: Cute kawaii style, large eyes, but each species distinct
+
+VISUAL STYLE:
+- Cinematic composition with dynamic camera angles
+- Rich environmental storytelling
+- Soft pastel colors with vibrant accents
+- Professional children's book quality
+- Whimsical, magical atmosphere
+
+Make sure all characters are visually distinct from each other, especially from Esme."""
 
         # Ensure prompt is not too long
         if len(prompt) > 1900:
-            prompt = prompt[:1900] + "..."
+            prompt = f"Cinematic children's book illustration: {scene_description}. Esme ({character_desc}) as focal point, other characters clearly different. Soft pastels, dynamic composition."
 
         try:
             response = requests.post(
@@ -127,14 +154,14 @@ Style: Whimsical children's book art, soft pastels, magical storybook quality"""
                 json={
                     "text_prompts": [
                         {"text": prompt, "weight": 1.0},
-                        {"text": "realistic photography, inconsistent character, scary, dark", "weight": -1.0}
+                        {"text": "realistic photography, all characters looking identical, adult features on child, scary, dark, blurry", "weight": -1.0}
                     ],
-                    "cfg_scale": 8,
-                    "height": 896,
-                    "width": 1152,
+                    "cfg_scale": 7,
+                    "height": 1024,  # FIXED: Standard dimensions
+                    "width": 1024,   # FIXED: Square format
                     "samples": 1,
-                    "steps": 30,
-                    "seed": 42  # Consistent seed for character consistency
+                    "steps": 25,
+                    "seed": 42  # Consistent seed for Esme's character
                 },
                 timeout=60
             )
@@ -146,10 +173,11 @@ Style: Whimsical children's book art, soft pastels, magical storybook quality"""
                 image_path = f"static/images/story_page_{page_number}_{image_hash[:8]}.jpg"
                 self._save_and_compress_image(image_data, image_path)
 
-                logging.info(f"Generated text-only image for page {page_number}")
+                logging.info(f"✓ Generated text-only image for page {page_number}")
                 return f"/{image_path}"
             else:
-                raise Exception(f"Image generation failed: {response.status_code}")
+                error_text = response.text[:200] if response.text else "Unknown error"
+                raise Exception(f"Image generation failed: {response.status_code} - {error_text}")
 
         except Exception as e:
             logging.error(f"Text-only generation failed: {e}")

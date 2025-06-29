@@ -1,29 +1,76 @@
-{{context_prefix}}Create a soft pastel drawing with vibrant, whimsical illustration showing: {{image_description}}
+{{context_prefix}}Create a cinematic, highly engaging illustration with dynamic composition and emotional depth showing: {{image_description}}
 
-## Character Description
+## Main Character - Esme
 {{esme_description}}
+CRITICAL: Esme must maintain exact consistency - same face, hair, clothing, and proportions in every image.
 
-## Style Guidelines
-- Main focus: Esme must be drawn with consistent appearance in gentle, dreamy pastel colors
-- Character style: Any animals or supporting characters should be adorably stylized with VERY large, expressive eyes (taking up about 1/3 of their face), simplified rounded body shapes, and cute features
-- Animals should look like kawaii cartoon characters with exaggerated cuteness - big heads, tiny bodies, and innocent expressions
-- Eyes should be glossy and reflective with visible highlights to create the cute, appealing look
-- Art style: Whimsical and enchanting, with soft edges and clean outlines
-- Color palette: Harmonious pastel colors with pops of vibrant accents
-- Background: Rich environment with dreamy, storybook quality
+## Other Characters (if present)
+- **Parents/Adults**: Clearly different from Esme - adult height, mature faces, different hair colors/styles
+- **Other Children**: Visibly different from Esme - different hair colors (blonde, black, red), different clothing styles, different facial features
+- **Animals**: Stylized with large kawaii eyes, but each species should be distinct
+- **Background People**: Varied appearances, clearly not the main character
 
-## Key Elements
-- The specific scene: {{image_description}}
-- Character consistency: Esme must appear consistent with previous images
-- Animal characters should have an innocent, wide-eyed, super cute appearance similar to kawaii illustrations
+## Character Distinction Guidelines
+- **Esme**: Always the focal point with consistent appearance
+- **Dad**: Tall adult man, different hair color from Esme, kind face
+- **Mum/Mom**: Adult woman, different hair style from Esme, warm expression
+- **Other Kids**: Clearly different - if Esme has curly brown hair, give others straight blonde, black braids, red pigtails, etc.
+- **Animals**: Each species has distinct characteristics while maintaining cute style
 
-## Technical Parameters
-- Create a cohesive illustration where animals have an adorable, stylized look with oversized shiny eyes and simplified features
-- {% if is_reference == "YES" %}THIS IMAGE WILL DEFINE THE CHARACTER'S APPEARANCE FOR THE ENTIRE STORY{% else %}Maintain consistent appearance with previous images{% endif %}
+## Enhanced Visual Style Guidelines
+- **Cinematic Composition**: Use dramatic camera angles - bird's eye views, dynamic close-ups, wide establishing shots, or over-the-shoulder perspectives
+- **Rule of Thirds**: Position Esme and key elements along compositional grid lines for visual impact
+- **Dynamic Poses**: Show Esme in mid-action with natural, expressive body language and clear emotional expression
+- **Depth & Layers**: Create rich foreground, midground, and background elements with atmospheric perspective
+- **Lighting Drama**: Use cinematic lighting - golden hour, rim lighting, dramatic shadows, or magical ambient glow
+- **Color Psychology**: Choose vibrant, emotionally resonant colors that match the scene's mood and energy
+- **Environmental Storytelling**: Fill backgrounds with rich details that support and enhance the narrative moment
 
-## Negative Prompts
-- Distorted faces, extra limbs, two heads
-- Blurry, dark, scary, dull colors
-- Incorrect proportions, unnatural poses
-- Adult features, realistic animals
-- Overly complex backgrounds that distract from main characters
+## Advanced Visual Elements
+- **Motion & Energy**: Include visual motion cues - flowing hair, clothing in motion, water splashes, floating particles
+- **Scale & Perspective**: Use size relationships to create wonder - show Esme small against large playground equipment or vast landscapes
+- **Emotional Resonance**: Capture the peak emotional moment of each scene through Esme's expression and posture
+- **Atmospheric Effects**: Add depth with mist, sparkles, sunbeams, shadows, or magical elements
+- **Texture Variety**: Mix smooth and textured surfaces - rough wood, smooth water, soft fabric, gleaming metal
+- **Leading Lines**: Use environmental elements (paths, railings, structures) to guide the eye to Esme
+
+## Scene-Specific Enhancements
+- **Playground scenes**: Show equipment from dramatic low angles, capture the thrill and scale
+- **Home scenes**: Create cozy, warm lighting with rich interior details and comfortable spaces
+- **Pool scenes**: Dynamic water effects, splash patterns, underwater views, crystal-clear reflections
+- **Outdoor scenes**: Expansive skies, natural lighting changes, environmental movement (wind, birds)
+- **Action scenes**: Freeze dramatic moments mid-motion with clear energy and momentum
+
+## Character Animation Readiness
+- **Clear Subject Separation**: Compose Esme distinctly from background for clean animation masking
+- **Consistent Lighting**: Establish clear light sources that can be maintained in animation
+- **Expressive Details**: Emphasize facial expressions, hand gestures, and body language for animation enhancement
+- **Environmental Anchors**: Include stable background elements that provide context during animation
+
+## Technical Excellence Parameters
+- **Visual Hierarchy**: Make Esme the clear focal point while supporting elements enhance the story
+- **Color Harmony**: Use cohesive color palettes with strategic accent colors for visual pop
+- **Contrast Management**: Balance high contrast for drama with sufficient detail in all areas
+- **Edge Definition**: Clear, clean edges around character and important elements for animation compatibility
+- **Character Consistency**: {% if is_reference == "YES" %}THIS REFERENCE IMAGE WILL DEFINE ESME'S APPEARANCE FOR ALL SUBSEQUENT IMAGES{% else %}Maintain exact character consistency with reference image while allowing dynamic poses and expressions{% endif %}
+
+## Specific Scene Focus
+- **Main Action**: {{image_description}}
+- **Emotional Context**: Capture Esme's feelings and reactions authentically
+- **Story Moment**: Show the most visually compelling and narratively important part of this scene
+- **Environmental Mood**: Let the setting reflect and amplify the emotional tone
+
+## Enhanced Negative Prompts
+- Static, boring poses or expressions
+- Flat, even lighting without drama or interest
+- Empty, lifeless backgrounds lacking detail
+- Poor composition with centered, predictable framing
+- Muddy colors or lack of visual contrast
+- Distorted anatomy, extra limbs, or facial inconsistencies
+- Adult proportions on child character
+- All characters looking identical or similar
+- Overly realistic animals (maintain stylized, kawaii appearance)
+- Dark, scary, or inappropriate imagery
+- Blurry details or lack of crisp definition
+- Generic stock photo appearance
+- Characters that could be confused with Esme

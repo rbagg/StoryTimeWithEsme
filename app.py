@@ -11,6 +11,7 @@ from services.image_service import ImageService
 from services.speech_service import SpeechService
 from services.reader_service import ReaderService
 from services.storage_service import StorageService
+from services.story_animation_service import StoryAnimationService  # NEW: Prompt-based Animation service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,6 +22,7 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
 
 # Create directories
 os.makedirs('static/images', exist_ok=True)
+os.makedirs('static/videos', exist_ok=True)  # NEW: For animations
 os.makedirs('temp_stories', exist_ok=True)
 
 # API Keys
@@ -50,6 +52,8 @@ image_service = ImageService(STABILITY_API_KEY)
 speech_service = SpeechService(ELEVEN_LABS_API_KEY, READING_SPEED_SETTINGS)
 reader_service = ReaderService()
 storage_service = StorageService()
+# NEW: Initialize animation service with your reading speed settings
+story_animation_service = StoryAnimationService(STABILITY_API_KEY, READING_SPEED_SETTINGS)
 
 @app.route('/')
 def index():
@@ -68,9 +72,12 @@ def get_voices():
 
 @app.route('/generate', methods=['POST'])
 def generate():
-    """Generate story with balanced filtering"""
+    """Generate story with balanced filtering and optional animations"""
     description = request.form.get('description')
     template_type = request.form.get('template_type', 'adventure')
+    # NEW: Animation options
+    enable_animation = request.form.get('enable_animation') == 'true'
+    animation_reading_mode = request.form.get('animation_reading_mode', 'normal')
 
     # Use photo-based character description since we have the reference photo
     character_description = "4 years old, curly brown hair, light skin, blue-green eyes"
@@ -80,6 +87,8 @@ def generate():
 
     try:
         logging.info(f"Generating {template_type} story with photo reference...")
+        if enable_animation:
+            logging.info(f"Animation enabled for {animation_reading_mode} reading mode")
 
         # Generate story with selected template
         story_text = story_service.generate_story_with_template(
@@ -196,13 +205,35 @@ def generate():
                 'image': image_url,
                 'stanzas': stanzas,
                 'simplified_text': simplified_text,
-                'simplified_stanzas': simplified_stanzas
+                'simplified_stanzas': simplified_stanzas,
+                'has_animation': False  # Will be updated if animations are generated
             })
 
             # Build context for next image
             story_context += f" {text}"
             if len(story_context) > 300:
                 story_context = story_context[-300:]
+
+        # NEW: Generate story-driven animations if requested
+        if enable_animation and STABILITY_API_KEY:
+            logging.info(f"Generating story-driven animations synchronized with {animation_reading_mode} reading mode...")
+
+            try:
+                content = story_animation_service.batch_generate_story_animations(
+                    content, 
+                    character_description,
+                    animation_reading_mode
+                )
+
+                # Count successful animations
+                successful_animations = sum(1 for page in content if page.get('has_animation', False))
+                logging.info(f"Successfully generated {successful_animations}/{len(content)} animations")
+
+            except Exception as e:
+                logging.error(f"Animation generation failed: {e}")
+                # Continue without animations rather than failing the entire story
+                for page in content:
+                    page['animation_error'] = f"Animation generation failed: {str(e)}"
 
         # Store enhanced story data
         temp_id = storage_service.store_temp_story({
@@ -213,13 +244,14 @@ def generate():
             'simplified_text': simplified_story_text,
             'image_descriptions': image_descriptions,
             'content': content,
-            'uses_photo_reference': image_service.has_reference_photo()
+            'uses_photo_reference': image_service.has_reference_photo(),
+            'has_animations': enable_animation and any(page.get('has_animation', False) for page in content)  # NEW
         })
 
         session['current_story_id'] = temp_id
 
         logging.info(f"Story generation completed successfully! Generated {len(content)} pages")
-        return render_template('story.html', story=content)
+        return render_template('story.html', story=content, has_animations=enable_animation)
 
     except Exception as e:
         logging.error(f"Error in story generation: {e}")
@@ -274,6 +306,69 @@ def analyze_timing():
         logging.error(f"Timing analysis error: {e}")
         return jsonify({'error': str(e)}), 500
 
+# NEW: Animation-related routes
+
+@app.route('/analyze_scene', methods=['POST'])
+def analyze_scene():
+    """Analyze a scene for animation potential (for debugging/testing)."""
+    data = request.json
+    scene_text = data.get('scene_text', '')
+
+    if not scene_text:
+        return jsonify({'error': 'No scene text provided'}), 400
+
+    try:
+        animation_config = story_animation_service.analyze_scene_content(scene_text)
+
+        # Calculate duration for both reading modes
+        normal_duration = story_animation_service.calculate_animation_duration(scene_text, 'normal', animation_config['detected_action'])
+        learning_duration = story_animation_service.calculate_animation_duration(scene_text, 'learning', animation_config['detected_action'])
+
+        return jsonify({
+            'success': True,
+            'analysis': animation_config,
+            'scene_text': scene_text,
+            'durations': {
+                'normal': normal_duration,
+                'learning': learning_duration
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/generate_scene_animation', methods=['POST'])
+def generate_scene_animation():
+    """Generate animation for a specific scene on demand."""
+    data = request.json
+    image_path = data.get('image_path')
+    scene_text = data.get('scene_text')
+    character_description = data.get('character_description', '4 years old, curly brown hair, light skin, blue-green eyes')
+    reading_mode = data.get('reading_mode', 'normal')
+
+    if not image_path or not scene_text:
+        return jsonify({'error': 'Missing required parameters'}), 400
+
+    try:
+        result = story_animation_service.generate_story_animation(
+            image_path,
+            scene_text,
+            character_description,
+            reading_mode
+        )
+
+        return jsonify(result)
+    except Exception as e:
+        logging.error(f"Error generating scene animation: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# END NEW animation routes
+
 @app.route('/save_story', methods=['POST'])
 def save_story():
     """Save story with photo reference metadata"""
@@ -324,7 +419,8 @@ def view_story(story_id):
     """View story with enhanced features."""
     try:
         story = storage_service.get_story(story_id)
-        return render_template('story.html', story=story['content'])
+        has_animations = any(page.get('has_animation', False) for page in story['content'])
+        return render_template('story.html', story=story['content'], has_animations=has_animations)
     except Exception as e:
         logging.error(f"Error viewing story {story_id}: {e}")
         return render_template('index.html', error=f"Could not load story: {str(e)}")
@@ -377,5 +473,11 @@ if __name__ == '__main__':
     print(f"🎨 Stability AI: {'✓ Ready' if STABILITY_API_KEY else '✗ Missing'}")
     print(f"🔊 ElevenLabs: {'✓ Ready' if ELEVEN_LABS_API_KEY else '✗ Missing'}")
     print("🚀 Enhanced features: Self-critique stories, better character consistency, predictive timing")
+
+    # NEW: Animation capability status
+    if STABILITY_API_KEY:
+        print("✨ Story-driven animation capability: ENABLED")
+    else:
+        print("📖 Story-driven animation capability: DISABLED (no Stability AI key)")
 
     app.run(host='0.0.0.0', port=8080, debug=True)

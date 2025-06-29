@@ -1,4 +1,4 @@
-<!-- Completely Fixed templates/index.html -->
+<!-- Enhanced templates/index.html with Animation Support -->
 {% extends "base.html" %}
 
 {% block title %}Esme's Story Generator{% endblock %}
@@ -56,6 +56,45 @@
             <input type="hidden" name="template_type" id="selectedTemplate" value="adventure">
 
             <textarea name="description" placeholder="Tell me about Esme's adventure today (e.g., Esme goes to the beach and builds sandcastles)" required></textarea>
+
+            <!-- NEW: Animation Options Section -->
+            <div class="animation-section">
+                <div class="animation-option">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="enable_animation" value="true" id="animationCheckbox">
+                        <span class="checkmark"></span>
+                        Generate story-driven animations ✨
+                        <small>Esme will act out the scenes - takes longer but magical!</small>
+                    </label>
+                </div>
+
+                <!-- Animation Mode Selection (hidden by default) -->
+                <div class="animation-mode-selection" id="animationModeSection" style="display: none;">
+                    <h4>Animation Speed:</h4>
+                    <div class="mode-options">
+                        <label class="radio-label">
+                            <input type="radio" name="animation_reading_mode" value="normal" checked>
+                            <span class="radio-checkmark"></span>
+                            Normal Speed
+                            <small>Animations match regular reading pace</small>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="animation_reading_mode" value="learning">
+                            <span class="radio-checkmark"></span>
+                            Learning Speed
+                            <small>Slower animations for "Learn to Read" mode</small>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Animation Preview -->
+                <div class="animation-preview" id="animationPreview" style="display: none;">
+                    <h4>🎬 Esme will act out the scenes!</h4>
+                    <div class="animation-note">
+                        <em>Instead of just static pictures, Esme will perform the actions described in your story - sliding, jumping, playing, discovering, and showing emotions!</em>
+                    </div>
+                </div>
+            </div>
 
             <button type="submit" id="generateBtn">Create Story</button>
         </form>
@@ -228,6 +267,112 @@
     transform: none;
 }
 
+/* NEW: Animation Section Styles */
+.animation-section {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f0f9ff;
+    border-radius: 15px;
+    border: 2px solid #bae6fd;
+}
+
+.animation-option {
+    margin-bottom: 15px;
+}
+
+.checkbox-label, .radio-label {
+    display: flex;
+    align-items: flex-start;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+
+.checkbox-label input[type="checkbox"], 
+.radio-label input[type="radio"] {
+    margin-right: 10px;
+    transform: scale(1.2);
+}
+
+.checkbox-label small, 
+.radio-label small {
+    display: block;
+    color: #666;
+    font-size: 14px;
+    margin-top: 5px;
+    margin-left: 25px;
+}
+
+.animation-mode-selection {
+    margin-top: 15px;
+    padding: 15px;
+    background: #fef3c7;
+    border-radius: 10px;
+    border: 2px solid #f59e0b;
+}
+
+.animation-mode-selection h4 {
+    margin: 0 0 10px 0;
+    color: #92400e;
+}
+
+.mode-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.animation-preview {
+    margin-top: 15px;
+    padding: 15px;
+    background: #f3e8ff;
+    border-radius: 10px;
+    border: 2px solid #c084fc;
+}
+
+.animation-preview h4 {
+    margin: 0 0 10px 0;
+    color: #7c3aed;
+}
+
+.animation-examples {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.animation-example {
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.animation-note {
+    background: rgba(124, 58, 237, 0.1);
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #5b21b6;
+    text-align: center;
+}
+
+/* Loading state enhancements */
+.generating-with-animation {
+    background: linear-gradient(45deg, #4ecdc4, #ff6b9e);
+    background-size: 400% 400%;
+    animation: gradient 2s ease infinite;
+}
+
+@keyframes gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
     .template-grid {
@@ -245,6 +390,18 @@
         font-size: 2.5rem;
         margin-bottom: 12px;
     }
+
+    .animation-examples {
+        grid-template-columns: 1fr;
+    }
+
+    .mode-options {
+        gap: 12px;
+    }
+
+    .radio-label small {
+        margin-left: 20px;
+    }
 }
 </style>
 
@@ -256,6 +413,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const templateCards = document.querySelectorAll('.template-card');
     const selectedTemplateInput = document.getElementById('selectedTemplate');
+    const animationCheckbox = document.getElementById('animationCheckbox');
+    const animationModeSection = document.getElementById('animationModeSection');
+    const animationPreview = document.getElementById('animationPreview');
 
     console.log('Found template cards:', templateCards.length);
 
@@ -308,14 +468,30 @@ document.addEventListener('DOMContentLoaded', function() {
         selectTemplate(templateCards[0]);
     }
 
+    // NEW: Handle animation checkbox toggle
+    if (animationCheckbox) {
+        animationCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                animationModeSection.style.display = 'block';
+                animationPreview.style.display = 'block';
+            } else {
+                animationModeSection.style.display = 'none';
+                animationPreview.style.display = 'none';
+            }
+        });
+    }
+
     // Form submission
     const storyForm = document.getElementById('storyForm');
     if (storyForm) {
         storyForm.addEventListener('submit', function(event) {
             const submitButton = document.getElementById('generateBtn');
             const selectedTemplate = selectedTemplateInput.value;
+            const isAnimationEnabled = animationCheckbox && animationCheckbox.checked;
+            const animationMode = document.querySelector('input[name="animation_reading_mode"]:checked')?.value || 'normal';
 
             console.log('Form submitting with template:', selectedTemplate);
+            console.log('Animation enabled:', isAnimationEnabled, 'Mode:', animationMode);
 
             const templateMessages = {
                 'adventure': 'Creating Adventure',
@@ -325,7 +501,24 @@ document.addEventListener('DOMContentLoaded', function() {
             };
 
             submitButton.disabled = true;
-            submitButton.innerHTML = `<span class="loading-spinner"></span> ${templateMessages[selectedTemplate] || 'Creating Story'}...`;
+
+            if (isAnimationEnabled) {
+                submitButton.innerHTML = `<span class="loading-spinner"></span> ${templateMessages[selectedTemplate] || 'Creating Story'} & Animations...`;
+                submitButton.classList.add('generating-with-animation');
+
+                // Show progress message
+                const progressDiv = document.createElement('div');
+                progressDiv.className = 'generation-progress';
+                progressDiv.innerHTML = `
+                    <div style="margin-top: 15px; padding: 15px; background: #fff3cd; border-radius: 10px; font-size: 14px;">
+                        <strong>🎬 Creating your animated story...</strong><br>
+                        <em>This may take 2-3 minutes as we generate images and then create story-specific animations synchronized with ${animationMode} reading speed.</em>
+                    </div>
+                `;
+                storyForm.appendChild(progressDiv);
+            } else {
+                submitButton.innerHTML = `<span class="loading-spinner"></span> ${templateMessages[selectedTemplate] || 'Creating Story'}...`;
+            }
         });
     }
 

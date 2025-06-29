@@ -4,10 +4,344 @@
 
 {% block css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/reader.css') }}">
+<style>
+/* NEW: Animation enhancement styles */
+.page-media-container {
+    position: relative;
+    display: inline-block;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    margin-bottom: 15px;
+}
+
+.page-image {
+    max-width: 70%;
+    height: auto;
+    border-radius: 10px;
+    display: block;
+    transition: opacity 0.5s ease;
+}
+
+.page-animation {
+    max-width: 70%;
+    height: auto;
+    border-radius: 10px;
+    display: none;
+}
+
+.page-animation.active {
+    display: block;
+}
+
+.animation-controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+}
+
+.animation-btn {
+    background: rgba(255, 255, 255, 0.95);
+    border: 2px solid #4ecdc4;
+    border-radius: 50%;
+    width: 45px;
+    height: 45px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    font-size: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.animation-btn:hover {
+    background: #4ecdc4;
+    color: white;
+    transform: scale(1.1);
+}
+
+.animation-btn.active {
+    background: #4ecdc4;
+    color: white;
+}
+
+.animation-info {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(78, 205, 196, 0.9);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+    z-index: 10;
+}
+
+.loading-animation {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 15px 20px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 20;
+}
+
+/* Animation status indicators */
+.has-animation .page {
+    border-left: 4px solid #4ecdc4;
+}
+
+.animation-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 10px 0;
+    font-size: 14px;
+}
+
+.animation-success {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 10px 0;
+    font-size: 14px;
+}
+
+/* Enhanced page transitions with animation awareness */
+.page {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: pageEnterWithAnimation 0.8s ease forwards;
+}
+
+@keyframes pageEnterWithAnimation {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.page.has-animation {
+    animation-delay: 0.2s;
+}
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/reader.js') }}" defer></script>
+<script>
+class EnhancedAnimationController {
+    constructor() {
+        this.currentAnimations = new Map();
+        this.initializeAnimationControls();
+        this.setupKeyboardControls();
+    }
+
+    initializeAnimationControls() {
+        document.querySelectorAll('.page').forEach((page, index) => {
+            const hasAnimation = page.dataset.hasAnimation === 'true';
+
+            if (hasAnimation) {
+                page.classList.add('has-animation');
+                this.addAnimationControls(page, index);
+            } else if (page.dataset.animationError) {
+                this.addErrorIndicator(page);
+            }
+        });
+    }
+
+    addAnimationControls(page, pageIndex) {
+        const mediaContainer = page.querySelector('.page-media-container') || this.createMediaContainer(page);
+
+        // Add animation info badge
+        const infoBadge = document.createElement('div');
+        infoBadge.className = 'animation-info';
+        infoBadge.textContent = page.dataset.animationAction || 'Animated';
+        mediaContainer.appendChild(infoBadge);
+
+        // Add control buttons
+        const controlsDiv = document.createElement('div');
+        controlsDiv.className = 'animation-controls';
+
+        // Play animation button
+        const playBtn = document.createElement('button');
+        playBtn.className = 'animation-btn';
+        playBtn.innerHTML = '▶️';
+        playBtn.title = `Play ${page.dataset.animationAction || 'animation'}`;
+        playBtn.onclick = () => this.showAnimation(page);
+
+        // Show static button
+        const staticBtn = document.createElement('button');
+        staticBtn.className = 'animation-btn active';
+        staticBtn.innerHTML = '🖼️';
+        staticBtn.title = 'Show static image';
+        staticBtn.onclick = () => this.showStatic(page);
+
+        controlsDiv.appendChild(staticBtn);
+        controlsDiv.appendChild(playBtn);
+        mediaContainer.appendChild(controlsDiv);
+    }
+
+    createMediaContainer(page) {
+        const img = page.querySelector('img');
+        if (!img) return null;
+
+        const container = document.createElement('div');
+        container.className = 'page-media-container';
+
+        // Wrap the image
+        img.parentNode.insertBefore(container, img);
+        container.appendChild(img);
+        img.className = 'page-image';
+
+        return container;
+    }
+
+    addErrorIndicator(page) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'animation-error';
+        errorDiv.innerHTML = `
+            <strong>⚠️ Animation generation failed</strong><br>
+            <small>${page.dataset.animationError}</small>
+        `;
+
+        const mediaContainer = page.querySelector('.page-media-container') || this.createMediaContainer(page);
+        if (mediaContainer) {
+            mediaContainer.appendChild(errorDiv);
+        }
+    }
+
+    showAnimation(page) {
+        const container = page.querySelector('.page-media-container');
+        const staticImage = container.querySelector('.page-image');
+        let animationElement = container.querySelector('.page-animation');
+
+        // Create video element if it doesn't exist
+        if (!animationElement) {
+            animationElement = document.createElement('video');
+            animationElement.className = 'page-animation';
+            animationElement.setAttribute('autoplay', '');
+            animationElement.setAttribute('loop', '');
+            animationElement.setAttribute('muted', '');
+            animationElement.setAttribute('playsinline', '');
+
+            // Get animation path from page data
+            const animationPath = page.dataset.animationPath;
+            if (animationPath) {
+                animationElement.src = animationPath;
+            }
+
+            container.appendChild(animationElement);
+        }
+
+        // Switch to animation
+        staticImage.style.display = 'none';
+        animationElement.classList.add('active');
+        animationElement.play();
+
+        // Update button states
+        this.updateButtonStates(container, 'animation');
+
+        // Log analytics
+        this.logAnimationView(page.dataset.animationAction);
+    }
+
+    showStatic(page) {
+        const container = page.querySelector('.page-media-container');
+        const staticImage = container.querySelector('.page-image');
+        const animationElement = container.querySelector('.page-animation');
+
+        // Switch to static
+        staticImage.style.display = 'block';
+        if (animationElement) {
+            animationElement.classList.remove('active');
+            animationElement.pause();
+        }
+
+        // Update button states
+        this.updateButtonStates(container, 'static');
+    }
+
+    updateButtonStates(container, activeMode) {
+        const buttons = container.querySelectorAll('.animation-btn');
+        buttons.forEach(btn => {
+            btn.classList.remove('active');
+            if ((activeMode === 'static' && btn.innerHTML === '🖼️') ||
+                (activeMode === 'animation' && btn.innerHTML === '▶️')) {
+                btn.classList.add('active');
+            }
+        });
+    }
+
+    setupKeyboardControls() {
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'a' || e.key === 'A') {
+                // Toggle all animations
+                this.toggleAllAnimations();
+            }
+        });
+    }
+
+    toggleAllAnimations() {
+        const animatedPages = document.querySelectorAll('.page.has-animation');
+        const firstPage = animatedPages[0];
+
+        if (firstPage) {
+            const container = firstPage.querySelector('.page-media-container');
+            const animationElement = container.querySelector('.page-animation');
+            const isCurrentlyAnimating = animationElement && animationElement.classList.contains('active');
+
+            animatedPages.forEach(page => {
+                if (isCurrentlyAnimating) {
+                    this.showStatic(page);
+                } else {
+                    this.showAnimation(page);
+                }
+            });
+        }
+    }
+
+    logAnimationView(actionType) {
+        console.log(`Animation viewed: ${actionType}`);
+        // Could send analytics data here
+    }
+}
+
+// Initialize animation controller when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if the story has animations
+    const hasAnimations = {{ 'true' if has_animations else 'false' }};
+
+    if (hasAnimations) {
+        const animationController = new EnhancedAnimationController();
+
+        // Show helpful tip
+        const tip = document.createElement('div');
+        tip.className = 'animation-success';
+        tip.innerHTML = `
+            <strong>✨ This story includes animated scenes!</strong><br>
+            <small>Click the ▶️ button on any page to see the animation, or press 'A' to toggle all animations at once.</small>
+        `;
+
+        const storyContainer = document.querySelector('.story-container');
+        if (storyContainer && storyContainer.firstChild) {
+            storyContainer.insertBefore(tip, storyContainer.firstChild.nextSibling);
+        }
+    }
+});
+</script>
 {% endblock %}
 
 {% block content %}
@@ -33,8 +367,19 @@
 
     <!-- Story Pages -->
     {% for page in story %}
-        <div class="page">
-            <img src="{{ page.image }}" alt="Page {{ page.page }}">
+        <div class="page" 
+             data-has-animation="{{ 'true' if page.get('has_animation', False) else 'false' }}"
+             {% if page.get('animation_action') %}data-animation-action="{{ page.animation_action }}"{% endif %}
+             {% if page.get('animation') %}data-animation-path="{{ page.animation }}"{% endif %}
+             {% if page.get('animation_error') %}data-animation-error="{{ page.animation_error }}"{% endif %}>
+
+            <div class="page-media-container">
+                <img src="{{ page.image }}" alt="Page {{ page.page }}" class="page-image">
+
+                {% if page.get('has_animation') and page.get('animation') %}
+                    <!-- Animation will be dynamically added by JavaScript -->
+                {% endif %}
+            </div>
 
             <!-- Original Content -->
             <div class="original-content">
@@ -64,6 +409,16 @@
                 {% endfor %}
             </div>
 
+            <!-- Animation Info (if available) -->
+            {% if page.get('has_animation') %}
+                <div class="animation-success">
+                    <strong>🎬 Animated Scene:</strong> {{ page.get('animation_description', 'Custom animation for this scene') }}
+                    {% if page.get('animation_duration') %}
+                        <br><small>Duration: {{ "%.1f"|format(page.animation_duration) }}s</small>
+                    {% endif %}
+                </div>
+            {% endif %}
+
             {% if loop.last %}
                 <p class="end">The End</p>
             {% endif %}
@@ -89,4 +444,3 @@
         </div>
     </div>
 </div>
-{% endblock %}
