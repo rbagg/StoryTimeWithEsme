@@ -1,3 +1,4 @@
+<!-- Completely Fixed templates/index.html -->
 {% extends "base.html" %}
 
 {% block title %}Esme's Story Generator{% endblock %}
@@ -7,11 +8,58 @@
 <div id="createContainer">
     <div class="form-container">
         <h1>Esme's Story Maker</h1>
-        <form method="POST" action="/generate">
-            <textarea name="description" placeholder="Tell me about Esme's adventure today (e.g., Esme collects shells at the beach with family)" required></textarea>
-            <input type="text" name="character_description" placeholder="Describe Esme (e.g., 4 year old girl with brown, curly hair, blue eyes, fair skin with a few freckles on her nose)" required>
-            <button type="submit" id="generateBtn">Generate Story</button>
+
+        <!-- Clean Template Selector -->
+        <div class="template-selector">
+            <h3>What kind of story today?</h3>
+            <div class="template-grid">
+                <button type="button" class="template-card" data-template="adventure" id="template-adventure">
+                    <div class="template-icon">🏔️</div>
+                    <div class="template-content">
+                        <h4>Adventure</h4>
+                        <p>Explore and discover</p>
+                    </div>
+                    <div class="selection-check">✓</div>
+                </button>
+
+                <button type="button" class="template-card" data-template="mystery" id="template-mystery">
+                    <div class="template-icon">🔍</div>
+                    <div class="template-content">
+                        <h4>Mystery</h4>
+                        <p>Solve puzzles</p>
+                    </div>
+                    <div class="selection-check">✓</div>
+                </button>
+
+                <button type="button" class="template-card" data-template="friendship" id="template-friendship">
+                    <div class="template-icon">👫</div>
+                    <div class="template-content">
+                        <h4>Friendship</h4>
+                        <p>Make new friends</p>
+                    </div>
+                    <div class="selection-check">✓</div>
+                </button>
+
+                <button type="button" class="template-card" data-template="problem_solving" id="template-problem_solving">
+                    <div class="template-icon">🧩</div>
+                    <div class="template-content">
+                        <h4>Problem Solving</h4>
+                        <p>Creative solutions</p>
+                    </div>
+                    <div class="selection-check">✓</div>
+                </button>
+            </div>
+        </div>
+
+        <form method="POST" action="/generate" id="storyForm">
+            <!-- Hidden field for selected template -->
+            <input type="hidden" name="template_type" id="selectedTemplate" value="adventure">
+
+            <textarea name="description" placeholder="Tell me about Esme's adventure today (e.g., Esme goes to the beach and builds sandcastles)" required></textarea>
+
+            <button type="submit" id="generateBtn">Create Story</button>
         </form>
+
         {% if error %}
             <p class="error">{{ error }}</p>
         {% endif %}
@@ -23,7 +71,6 @@
     <div class="library-container">
         <h1>Your Story Library</h1>
         <div id="libraryContent">
-            <!-- Stories will be loaded here -->
             <p>Loading stories...</p>
         </div>
     </div>
@@ -31,17 +78,263 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+/* Clean Template Styles - Embedded to avoid conflicts */
+.template-selector {
+    margin: 25px 0 35px 0;
+    text-align: center;
+}
+
+.template-selector h3 {
+    color: #4ecdc4;
+    margin-bottom: 20px;
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.template-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.template-card {
+    background: white;
+    border: 3px solid #e9ecef;
+    border-radius: 20px;
+    padding: 25px 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    min-height: 140px;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.template-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    border-color: #4ecdc4;
+}
+
+.template-icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+}
+
+.template-content h4 {
+    font-weight: bold;
+    font-size: 18px;
+    margin: 0 0 8px 0;
+    color: #333;
+    transition: color 0.3s ease;
+}
+
+.template-content p {
+    font-size: 14px;
+    margin: 0;
+    color: #666;
+    transition: color 0.3s ease;
+}
+
+.selection-check {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: transparent;
+    border: 2px solid #ddd;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+/* ACTIVE STATE - This is the key part */
+.template-card.selected {
+    background: linear-gradient(135deg, #4ecdc4, #45b7d1);
+    border-color: #4ecdc4;
+    color: white;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(78, 205, 196, 0.4);
+}
+
+.template-card.selected .template-content h4,
+.template-card.selected .template-content p {
+    color: white;
+}
+
+.template-card.selected .selection-check {
+    background: white;
+    border-color: white;
+    color: #4ecdc4;
+    opacity: 1;
+}
+
+/* Form styling */
+.form-container textarea {
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+    min-height: 120px;
+    font-size: 16px;
+    padding: 15px;
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+}
+
+.form-container textarea:focus {
+    border-color: #4ecdc4;
+    box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.1);
+    outline: none;
+}
+
+#generateBtn {
+    width: 100%;
+    padding: 15px;
+    font-size: 18px;
+    font-weight: bold;
+    margin-top: 20px;
+    background: linear-gradient(135deg, #4ecdc4, #45b7d1);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#generateBtn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(78, 205, 196, 0.3);
+}
+
+#generateBtn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .template-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        max-width: 400px;
+    }
+
+    .template-card {
+        padding: 20px 15px;
+        min-height: 120px;
+    }
+
+    .template-icon {
+        font-size: 2.5rem;
+        margin-bottom: 12px;
+    }
+}
+</style>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Set up form submission handler
-        const storyForm = document.querySelector('form[action="/generate"]');
-        if (storyForm) {
-            storyForm.addEventListener('submit', function(event) {
-                const submitButton = document.getElementById('generateBtn');
-                submitButton.disabled = true;
-                submitButton.innerHTML = '<span class="loading-spinner"></span> Generating...';
-            });
-        }
+console.log('Loading template selector...');
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing template selection');
+
+    const templateCards = document.querySelectorAll('.template-card');
+    const selectedTemplateInput = document.getElementById('selectedTemplate');
+
+    console.log('Found template cards:', templateCards.length);
+
+    // Clear function
+    function clearAllSelections() {
+        templateCards.forEach(card => {
+            card.classList.remove('selected');
+            console.log('Cleared selection from:', card.dataset.template);
+        });
+    }
+
+    // Select function
+    function selectTemplate(card) {
+        console.log('Selecting template:', card.dataset.template);
+
+        // Clear all first
+        clearAllSelections();
+
+        // Add selected class
+        card.classList.add('selected');
+
+        // Update hidden input
+        selectedTemplateInput.value = card.dataset.template;
+
+        console.log('Template selected:', card.dataset.template);
+        console.log('Hidden input value:', selectedTemplateInput.value);
+    }
+
+    // Add click listeners
+    templateCards.forEach((card, index) => {
+        console.log('Adding listener to card:', card.dataset.template);
+
+        card.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Card clicked:', this.dataset.template);
+
+            selectTemplate(this);
+
+            // Visual feedback
+            this.style.transform = 'translateY(-3px) scale(0.95)';
+            setTimeout(() => {
+                this.style.transform = 'translateY(-3px)';
+            }, 150);
+        });
     });
+
+    // Select first card by default
+    if (templateCards.length > 0) {
+        console.log('Setting default selection to first card');
+        selectTemplate(templateCards[0]);
+    }
+
+    // Form submission
+    const storyForm = document.getElementById('storyForm');
+    if (storyForm) {
+        storyForm.addEventListener('submit', function(event) {
+            const submitButton = document.getElementById('generateBtn');
+            const selectedTemplate = selectedTemplateInput.value;
+
+            console.log('Form submitting with template:', selectedTemplate);
+
+            const templateMessages = {
+                'adventure': 'Creating Adventure',
+                'mystery': 'Solving Mystery', 
+                'friendship': 'Making Friends',
+                'problem_solving': 'Finding Solutions'
+            };
+
+            submitButton.disabled = true;
+            submitButton.innerHTML = `<span class="loading-spinner"></span> ${templateMessages[selectedTemplate] || 'Creating Story'}...`;
+        });
+    }
+
+    // Debug: Check selection every 3 seconds
+    setInterval(() => {
+        const selected = document.querySelector('.template-card.selected');
+        const hiddenValue = selectedTemplateInput.value;
+        console.log('Debug check - Selected card:', selected ? selected.dataset.template : 'none', 'Hidden value:', hiddenValue);
+    }, 3000);
+});
 </script>
 {% endblock %}

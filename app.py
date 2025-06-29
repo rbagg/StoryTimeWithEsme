@@ -2,12 +2,10 @@ from flask import Flask, request, render_template, jsonify, session
 import os
 import json
 import logging
-from pathlib import Path
-import uuid
 from datetime import datetime
-import shutil
+import re
 
-# Import services
+# Import enhanced services
 from services.story_service import StoryService
 from services.image_service import ImageService
 from services.speech_service import SpeechService
@@ -15,68 +13,52 @@ from services.reader_service import ReaderService
 from services.storage_service import StorageService
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-# Try to load .env file for local development, but this won't be used on Replit
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-    print("Loaded .env file for local development")
-except ImportError:
-    print("python-dotenv not installed, using environment variables directly")
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
 
-# Create necessary directories
+# Create directories
 os.makedirs('static/images', exist_ok=True)
 os.makedirs('temp_stories', exist_ok=True)
 
-# Initialize API keys
+# API Keys
 CLAUDE_API_KEY = os.getenv('CLAUDE_API_KEY')
 STABILITY_API_KEY = os.getenv('STABILITY_API_KEY')
 ELEVEN_LABS_API_KEY = os.getenv('ELEVEN_LABS_API_KEY')
 
-# Log API key status
-print(f"Claude API Key loaded: {CLAUDE_API_KEY is not None}")
-print(f"Stability API Key loaded: {STABILITY_API_KEY is not None}")
-print(f"ElevenLabs API Key loaded: {ELEVEN_LABS_API_KEY is not None}")
-
-# Configuration for word highlighting and reading speed
+# Enhanced reading speed settings with predictive timing
 READING_SPEED_SETTINGS = {
     "normal": {
-        "base_duration": 200,    # ms per word base time
-        "char_duration": 40,     # ms per character
-        "speaking_rate": 1.0,    # Normal speed for ElevenLabs
-        "playback_rate": 1.0     # Client-side playback rate
+        "base_duration": 180,
+        "char_duration": 60,
+        "speaking_rate": 1.0,
+        "playback_rate": 1.0
     },
     "learning": {
-        "base_duration": 700,    # ms per word base time
-        "char_duration": 120,    # ms per character
-        "speaking_rate": 0.7,    # Minimum viable ElevenLabs speed
-        "playback_rate": 0.5     # Additional client-side slowdown
+        "base_duration": 600,
+        "char_duration": 150,
+        "speaking_rate": 0.7,
+        "playback_rate": 0.6
     }
 }
 
-# Initialize services
+# Initialize enhanced services
 story_service = StoryService(CLAUDE_API_KEY)
 image_service = ImageService(STABILITY_API_KEY)
 speech_service = SpeechService(ELEVEN_LABS_API_KEY, READING_SPEED_SETTINGS)
 reader_service = ReaderService()
 storage_service = StorageService()
 
-@app.route('/', methods=['GET'])
+@app.route('/')
 def index():
-    """Render the main page with the story generation form and library."""
+    """Main page with story creation and library."""
     return render_template('index.html')
 
-@app.route('/get_voices', methods=['GET'])
+@app.route('/get_voices')
 def get_voices():
-    """Get available voices from ElevenLabs API."""
+    """Get available voices optimized for children's content."""
     try:
         voices = speech_service.get_voices()
         return jsonify({"voices": voices})
@@ -86,167 +68,250 @@ def get_voices():
 
 @app.route('/generate', methods=['POST'])
 def generate():
-    """Generate a story based on user input."""
+    """Generate story with balanced filtering"""
     description = request.form.get('description')
-    character_description = request.form.get('character_description')
+    template_type = request.form.get('template_type', 'adventure')
 
-    if not description or not character_description:
-        return render_template('index.html', 
-                              error="Please enter both a description and Esme's appearance!")
+    # Use photo-based character description since we have the reference photo
+    character_description = "4 years old, curly brown hair, light skin, blue-green eyes"
+
+    if not description:
+        return render_template('index.html', error="Please describe Esme's adventure!")
 
     try:
-        # Generate the story text
-        story_text = story_service.generate_story(description)
+        logging.info(f"Generating {template_type} story with photo reference...")
+
+        # Generate story with selected template
+        story_text = story_service.generate_story_with_template(
+            description, character_description, template_type
+        )
+
         if not story_text:
-            return render_template('index.html', 
-                                  error="Story generation failed. The service is currently overloaded. Please try again in a few moments.")
+            return render_template('index.html', error="Story generation failed. Please try again.")
 
-        # Process the story into pages/stanzas
-        pages = [p.strip() for p in story_text.split('\n\n') if p.strip()]
-
-        # Generate image descriptions
-        image_descriptions = story_service.generate_image_descriptions(pages)
-
-        # Generate simplified version for early readers
+        # Generate enhanced simplified version
         simplified_story_text = story_service.generate_simplified_story(story_text)
-        simplified_pages = [p.strip() for p in simplified_story_text.split('\n\n') if p.strip()]
 
-        # Process and build the complete story content
+        # Process into pages - ONLY filter obvious metadata
+        raw_pages = story_text.split('\n\n')
+        pages = []
+
+        for page in raw_pages:
+            page = page.strip()
+
+            # Skip empty pages
+            if not page:
+                continue
+
+            # Only skip VERY OBVIOUS metadata - be conservative
+            obvious_skip_patterns = [
+                '[The revised version includes:',  # Exact metadata headers
+                '[The improved version has:',
+                '1. More playful, bouncy rhymes',  # Exact numbered improvements
+                '2. Concrete details kids can relate to',
+                '3. Active verbs (',
+                '4. Simple but engaging language',
+                '5. More sensory details',
+                '6. Fun activities that 4-year-olds enjoy'
+            ]
+
+            should_skip = False
+            for pattern in obvious_skip_patterns:
+                if page.startswith(pattern):
+                    should_skip = True
+                    logging.info(f"Skipped obvious metadata: {page[:50]}...")
+                    break
+
+            # Keep everything else, including story titles and content
+            if not should_skip and len(page) > 10:  # Keep anything with substance
+                pages.append(page)
+                logging.info(f"Kept story content: {page[:50]}...")
+
+        logging.info(f"Final result: {len(pages)} story pages (filtered from {len(raw_pages)} raw sections)")
+
+        # If we have too few pages, be even less aggressive
+        if len(pages) < 3:
+            logging.warning("Too few pages detected, using minimal filtering...")
+            pages = []
+            for page in raw_pages:
+                page = page.strip()
+                if page and len(page) > 20:  # Keep almost everything
+                    pages.append(page)
+            logging.info(f"Minimal filtering result: {len(pages)} pages")
+
+        if len(pages) == 0:
+            return render_template('index.html', error="Story processing failed - no valid content found. Please try again.")
+
+        # Process simplified pages the same way
+        raw_simplified = simplified_story_text.split('\n\n') if simplified_story_text else []
+        simplified_pages = []
+
+        for page in raw_simplified:
+            page = page.strip()
+            if page and len(page) > 10:  # Keep substantial simplified content
+                # Apply same obvious metadata filtering to simplified version
+                should_skip = False
+                for pattern in obvious_skip_patterns:
+                    if page.startswith(pattern):
+                        should_skip = True
+                        break
+
+                if not should_skip:
+                    simplified_pages.append(page)
+
+        logging.info(f"Processed {len(simplified_pages)} simplified pages")
+
+        # Initialize image service with photo reference
+        image_service.generate_character_profile(character_description)
+
+        # Generate image descriptions for better scenes
+        image_descriptions = story_service.generate_image_descriptions(pages, character_description)
+
         content = []
+        story_context = ""
 
         for index, text in enumerate(pages):
-            # Use the corresponding image description if available, otherwise use the stanza text
+            logging.info(f"Processing story page {index + 1} of {len(pages)}")
+
+            # Use enhanced image description or fallback
             image_description = image_descriptions[index] if index < len(image_descriptions) else text
 
-            # Generate context from previous stanzas
-            story_context = ""
-            if index > 0:
-                context_start = max(0, index - 2)
-                previous_stanzas = pages[context_start:index]
-                story_context = "Previous story context: " + " ".join(previous_stanzas)
-
-                # Limit context length
-                if len(story_context) > 300:
-                    story_context = story_context[:297] + "..."
-
-            # Generate image with context
-            image_url = image_service.generate_image(
-                text, 
+            # Generate image using photo reference
+            image_url = image_service.generate_story_image(
                 image_description, 
-                character_description, 
-                story_context=story_context
+                index + 1, 
+                story_context
             )
 
-            # Process the stanza text into structured format
+            # Process text for reading
             stanzas = reader_service.process_story_text(text)
 
-            # Process simplified stanzas
+            # Process simplified text
             simplified_text = simplified_pages[index] if index < len(simplified_pages) else ""
             simplified_stanzas = reader_service.process_story_text(simplified_text)
 
-            # Add to content list
             content.append({
-                'page': index + 1, 
-                'text': text, 
-                'image': image_url, 
+                'page': index + 1,
+                'text': text,
+                'image': image_url,
                 'stanzas': stanzas,
                 'simplified_text': simplified_text,
                 'simplified_stanzas': simplified_stanzas
             })
 
-        # Store the current story in session or temporary storage
+            # Build context for next image
+            story_context += f" {text}"
+            if len(story_context) > 300:
+                story_context = story_context[-300:]
+
+        # Store enhanced story data
         temp_id = storage_service.store_temp_story({
             'description': description,
             'character_description': character_description,
+            'template_type': template_type,
             'story_text': story_text,
             'simplified_text': simplified_story_text,
             'image_descriptions': image_descriptions,
-            'content': content
+            'content': content,
+            'uses_photo_reference': image_service.has_reference_photo()
         })
 
-        # Store temp_id in session for reference
         session['current_story_id'] = temp_id
 
+        logging.info(f"Story generation completed successfully! Generated {len(content)} pages")
         return render_template('story.html', story=content)
 
     except Exception as e:
-        logging.error(f"Error generating story: {e}")
-        return render_template('index.html', 
-                              error=f"Oops! Something went wrong: {str(e)}")
+        logging.error(f"Error in story generation: {e}")
+        return render_template('index.html', error=f"Story creation failed: {str(e)}")
 
 @app.route('/read', methods=['POST'])
 def read_text():
-    """Convert text to speech using ElevenLabs API."""
+    """Enhanced text-to-speech with predictive timing."""
     try:
         data = json.loads(request.data)
 
-        # Validate required parameters
-        if 'text' not in data:
-            return "No text provided", 400
-        if 'voice' not in data:
-            return "No voice ID provided", 400
-
-        raw_text = data['text']
-        voice_id = data['voice']
+        raw_text = data.get('text', '')
+        voice_id = data.get('voice', '')
         reading_mode = data.get('reading_mode', 'normal')
 
-        # We no longer need the reading_speed parameter, but accept it for backward compatibility
-        reading_speed = 1.0  # Fixed value since we're removing speed selectors
+        if not raw_text or not voice_id:
+            return "Missing text or voice", 400
 
-        # Log the request details
-        logging.info(f"Read request: mode={reading_mode}, text_length={len(raw_text)}")
+        logging.info(f"Enhanced speech generation: mode={reading_mode}, text_length={len(raw_text)}")
 
-        # Generate audio stream from ElevenLabs
+        # Generate speech with enhanced timing prediction
         audio_stream, response_headers = speech_service.generate_speech(
             raw_text, 
             voice_id, 
             reading_mode
         )
 
-        return app.response_class(audio_stream, mimetype='audio/mpeg', headers=response_headers)
+        return app.response_class(
+            audio_stream, 
+            mimetype='audio/mpeg', 
+            headers=response_headers
+        )
 
     except Exception as e:
-        logging.error(f"Error reading text: {e}")
-        return f"Error reading text: {str(e)}", 500
+        logging.error(f"Enhanced speech generation error: {e}")
+        return f"Speech generation failed: {str(e)}", 500
+
+@app.route('/analyze_timing', methods=['POST'])
+def analyze_timing():
+    """Analyze text timing for better word highlighting synchronization."""
+    try:
+        data = json.loads(request.data)
+        text = data.get('text', '')
+        reading_mode = data.get('reading_mode', 'normal')
+
+        # Get timing analysis from enhanced speech service
+        timing_analysis = speech_service.get_timing_preview(text, reading_mode)
+
+        return jsonify(timing_analysis)
+
+    except Exception as e:
+        logging.error(f"Timing analysis error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/save_story', methods=['POST'])
-def save_story_route():
-    """Save the current story to the database."""
+def save_story():
+    """Save story with photo reference metadata"""
     data = request.json
     title = data.get('title')
 
     if not title:
         return jsonify({'error': 'No title provided'}), 400
 
-    # Get the current story from session
     current_story_id = session.get('current_story_id')
     if not current_story_id:
         return jsonify({'error': 'No story to save'}), 400
 
-    current_story = storage_service.get_temp_story(current_story_id)
-    if not current_story:
-        return jsonify({'error': 'Failed to retrieve story data'}), 500
-
     try:
-        # Save the story to the database
+        current_story = storage_service.get_temp_story(current_story_id)
+        if not current_story:
+            return jsonify({'error': 'Story data not found'}), 500
+
+        # Save with photo reference info
         story_id = storage_service.save_story(
             title=title,
             description=current_story['description'],
-            character_description=current_story['character_description'],
+            character_description=current_story.get('character_description', 'Photo reference used'),
             story_text=current_story['story_text'],
-            image_descriptions=current_story['image_descriptions'],
+            image_descriptions=current_story.get('image_descriptions', []),
             content=current_story['content'],
-            simplified_text=current_story['simplified_text']
+            simplified_text=current_story.get('simplified_text', '')
         )
 
         return jsonify({'success': True, 'story_id': story_id})
+
     except Exception as e:
         logging.error(f"Error saving story: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/get_stories', methods=['GET'])
-def get_stories_route():
-    """Get all stories from the database."""
+@app.route('/get_stories')
+def get_stories():
+    """Get all stories with enhanced metadata."""
     try:
         stories = storage_service.get_all_stories()
         return jsonify({'stories': stories})
@@ -254,29 +319,19 @@ def get_stories_route():
         logging.error(f"Error getting stories: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/get_story/<story_id>', methods=['GET'])
-def get_story_route(story_id):
-    """Get a specific story by ID."""
-    try:
-        story = storage_service.get_story(story_id)
-        return jsonify(story)
-    except Exception as e:
-        logging.error(f"Error getting story {story_id}: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/view_story/<story_id>', methods=['GET'])
+@app.route('/view_story/<story_id>')
 def view_story(story_id):
-    """Render a specific story by ID."""
+    """View story with enhanced features."""
     try:
         story = storage_service.get_story(story_id)
         return render_template('story.html', story=story['content'])
     except Exception as e:
         logging.error(f"Error viewing story {story_id}: {e}")
-        return render_template('index.html', error=f"Oops! Something went wrong: {str(e)}")
+        return render_template('index.html', error=f"Could not load story: {str(e)}")
 
 @app.route('/delete_story/<story_id>', methods=['DELETE'])
-def delete_story_route(story_id):
-    """Delete a story from the database."""
+def delete_story(story_id):
+    """Delete story."""
     try:
         storage_service.delete_story(story_id)
         return jsonify({'success': True})
@@ -284,41 +339,43 @@ def delete_story_route(story_id):
         logging.error(f"Error deleting story {story_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
-# Cleanup routine for temporary stories
-def cleanup_temp_stories():
-    """Remove old temporary stories."""
-    storage_service.cleanup_temp_stories()
+@app.route('/story_templates')
+def get_story_templates():
+    """Get available story templates."""
+    templates = {
+        'adventure': {
+            'name': 'Adventure Story',
+            'description': 'Esme explores, discovers, and overcomes challenges',
+            'example': 'Esme discovers a hidden cave and finds treasure'
+        },
+        'mystery': {
+            'name': 'Mystery Story', 
+            'description': 'Esme solves puzzles and uncovers secrets',
+            'example': 'Esme finds clues to solve the missing toy mystery'
+        },
+        'friendship': {
+            'name': 'Friendship Story',
+            'description': 'Esme makes new friends and learns about cooperation',
+            'example': 'Esme meets a new neighbor and they become best friends'
+        },
+        'problem_solving': {
+            'name': 'Problem-Solving Story',
+            'description': 'Esme uses creativity to solve challenges',
+            'example': 'Esme builds a bridge to help animals cross the stream'
+        }
+    }
+    return jsonify(templates)
 
-# Run cleanup on app startup
+# Initialize database and cleanup on startup
 with app.app_context():
     storage_service.init_db()
-    cleanup_temp_stories()
+    storage_service.cleanup_temp_stories()
 
 if __name__ == '__main__':
-    # Create all necessary directories if they don't exist
-    os.makedirs('static/images', exist_ok=True)
-    os.makedirs('static/css', exist_ok=True)
-    os.makedirs('static/js', exist_ok=True)
-    os.makedirs('prompts', exist_ok=True)
-    os.makedirs('services', exist_ok=True)
-    os.makedirs('templates', exist_ok=True)
+    print("🌟 Starting Enhanced Esme's Story Generator...")
+    print(f"📚 Claude API: {'✓ Ready' if CLAUDE_API_KEY else '✗ Missing'}")
+    print(f"🎨 Stability AI: {'✓ Ready' if STABILITY_API_KEY else '✗ Missing'}")
+    print(f"🔊 ElevenLabs: {'✓ Ready' if ELEVEN_LABS_API_KEY else '✗ Missing'}")
+    print("🚀 Enhanced features: Self-critique stories, better character consistency, predictive timing")
 
-    # Check if prompt files exist, and create them if they don't
-    prompt_files = {
-        'story_prompt.txt': 'prompts/story_prompt.txt',
-        'image_prompt.txt': 'prompts/image_prompt.txt',
-        'simplified_story_prompt.txt': 'prompts/simplified_story_prompt.txt',
-        'image_description_prompt.txt': 'prompts/image_description_prompt.txt',
-        'reader_prompt.txt': 'prompts/reader_prompt.txt'
-    }
-
-    for name, path in prompt_files.items():
-        if not os.path.exists(path):
-            logging.warning(f"Prompt file {path} not found, will be created on first use")
-
-    print("Starting Esme's Story Generator...")
-    print(f"Claude API Key status: {'Available' if CLAUDE_API_KEY else 'Missing'}")
-    print(f"Stability API Key status: {'Available' if STABILITY_API_KEY else 'Missing'}")
-    print(f"ElevenLabs API Key status: {'Available' if ELEVEN_LABS_API_KEY else 'Missing'}")
-
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8080, debug=True)

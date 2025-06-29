@@ -1,226 +1,211 @@
 import os
 import requests
+import base64
 import hashlib
 import time
-import base64
 import io
 import logging
-from pathlib import Path
 from PIL import Image
 
 class ImageService:
-    """Service for generating images using Stability AI API."""
+    """Complete image service with photo reference support for better character consistency."""
 
     def __init__(self, api_key):
-        """Initialize the image service with API key.
-
-        Args:
-            api_key (str): Stability AI API key
-        """
         self.api_key = api_key
-        self.reference_seed = None
+        self.character_profile = None
+        self.reference_photo_path = "static/images/esme_reference.jpg"  # Path to uploaded photo
 
-        # Load the image prompt template
-        self.image_prompt_template = Path("prompts/image_prompt.txt").read_text()
+    def has_reference_photo(self):
+        """Check if reference photo exists"""
+        exists = os.path.exists(self.reference_photo_path)
+        logging.info(f"Reference photo check: {self.reference_photo_path} exists = {exists}")
+        return exists
 
-    def generate_reference_image(self, character_description):
-        """Generate an initial reference image for Esme to establish consistency.
+    def generate_character_profile(self, character_description):
+        """Create character profile, using photo if available"""
+        self.character_profile = {
+            'description': character_description,
+            'uses_photo_reference': self.has_reference_photo(),
+            'photo_path': self.reference_photo_path if self.has_reference_photo() else None
+        }
 
-        Args:
-            character_description (str): Description of Esme's appearance
+        logging.info(f"Character profile created. Photo reference: {self.has_reference_photo()}")
+        return self.character_profile
 
-        Returns:
-            str: Path to the generated reference image
+    def generate_story_image_with_photo(self, scene_description, page_number, story_context=""):
+        """Generate image using photo reference for better consistency"""
 
-        Raises:
-            Exception: If image generation fails after max retries
-        """
-        # Format prompt for reference image
-        image_prompt = self.image_prompt_template.replace("{{character_description}}", character_description)
-        image_prompt = image_prompt.replace("{{is_reference}}", "YES")
+        if not self.has_reference_photo():
+            # Fallback to text-only generation
+            logging.info("No photo reference found, using text-only generation")
+            return self.generate_story_image_text_only(scene_description, page_number, story_context)
 
-        # Ensure we're under the stability API limit of 2000 chars
-        if len(image_prompt) > 1900:
-            # Truncate if needed but preserve essential elements
-            image_prompt = (
-                f"Vibrant portrait of Esme, a 4-year-old girl. She has EXACTLY: {character_description[:150]}. "
-                f"Her face is clearly visible. Semi-lifelike features. Colorful outfit. Pastel background. Clean lines. "
-                f"THIS CHARACTER APPEARANCE MUST BE CONSISTENT THROUGHOUT ALL IMAGES."
+        try:
+            logging.info(f"Using photo reference for page {page_number}")
+
+            # Read and encode the reference photo
+            with open(self.reference_photo_path, 'rb') as image_file:
+                photo_data = base64.b64encode(image_file.read()).decode()
+
+            # Create enhanced prompt for image-to-image
+            prompt = f"""Transform this photo into a children's book illustration style showing: {scene_description}
+
+Style requirements:
+- Soft pastel children's book art style
+- Keep the character's facial features and appearance EXACTLY the same
+- Whimsical, magical storybook environment
+- Professional children's book illustration quality
+- Scene: {scene_description}
+
+Maintain character consistency while changing the scene and background."""
+
+            # Use Stability AI's image-to-image endpoint
+            response = requests.post(
+                "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/image-to-image",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "init_image": photo_data,
+                    "text_prompts": [
+                        {"text": prompt, "weight": 1.0},
+                        {"text": "realistic photography, adult features, scary, dark", "weight": -1.0}
+                    ],
+                    "image_strength": 0.3,  # Keep character features but allow scene changes
+                    "cfg_scale": 8,
+                    "height": 896,
+                    "width": 1152,
+                    "samples": 1,
+                    "steps": 30
+                },
+                timeout=60
             )
 
-        logging.info(f"Generating reference image with character description: {character_description[:50]}...")
+            if response.status_code == 200:
+                image_data = response.json()["artifacts"][0]["base64"]
 
-        # Set seed for reference image to maintain consistency
-        seed = 42
+                # Save the generated image
+                image_hash = hashlib.md5(scene_description.encode()).hexdigest()
+                image_path = f"static/images/story_page_{page_number}_{image_hash[:8]}.jpg"
+                self._save_and_compress_image(image_data, image_path)
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = requests.post(
-                    "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "text_prompts": [
-                            {"text": image_prompt, "weight": 1.0},
-                            {"text": "distorted faces, extra limbs, two heads, blurry, dark, scary, dull colors", "weight": -1.0}
-                        ],
-                        "cfg_scale": 8,
-                        "height": 896,
-                        "width": 1152,
-                        "samples": 1,
-                        "steps": 30,
-                        "seed": seed
-                    },
-                    timeout=30
-                )
+                logging.info(f"Generated image with photo reference for page {page_number}")
+                return f"/{image_path}"
+            else:
+                logging.warning(f"Photo-based generation failed: {response.status_code}")
+                # Fallback to text-only
+                return self.generate_story_image_text_only(scene_description, page_number, story_context)
 
-                logging.info(f"Stability API response status: {response.status_code}")
+        except Exception as e:
+            logging.error(f"Photo reference generation failed: {e}")
+            # Fallback to text-only generation
+            return self.generate_story_image_text_only(scene_description, page_number, story_context)
 
-                if response.status_code == 200:
-                    image_data = response.json()["artifacts"][0]["base64"]
-                    image_path = "static/images/esme_reference.jpg"
-                    self._compress_image(image_data, image_path)
+    def generate_story_image_text_only(self, scene_description, page_number, story_context=""):
+        """Fallback text-only generation when no photo available"""
 
-                    # Set the reference seed for future images
-                    self.reference_seed = seed
+        character_desc = self.character_profile['description'] if self.character_profile else "4 years old, curly brown hair, light skin, blue-green eyes"
 
-                    return f"/{image_path}"
-                elif response.status_code in (520, 502) and attempt < max_retries - 1:
-                    logging.warning(f"Retry attempt {attempt + 1} due to {response.status_code} error. Waiting 5 seconds...")
-                    time.sleep(5)
-                    continue
-                else:
-                    raise Exception(f"Stability API error: {response.status_code} - {response.text}")
+        prompt = f"""Soft pastel children's book illustration: {scene_description}
 
-            except requests.RequestException as e:
-                logging.error(f"Request error: {e}")
-                if attempt < max_retries - 1:
-                    logging.info(f"Retry attempt {attempt + 1} due to request error. Waiting 5 seconds...")
-                    time.sleep(5)
-                    continue
-                raise
+Character: Esme is exactly {character_desc}. She must appear IDENTICAL in every image.
 
-        raise Exception("Max retries reached for Stability API request")
+Style: Whimsical children's book art, soft pastels, magical storybook quality"""
 
+        # Ensure prompt is not too long
+        if len(prompt) > 1900:
+            prompt = prompt[:1900] + "..."
+
+        try:
+            response = requests.post(
+                "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "text_prompts": [
+                        {"text": prompt, "weight": 1.0},
+                        {"text": "realistic photography, inconsistent character, scary, dark", "weight": -1.0}
+                    ],
+                    "cfg_scale": 8,
+                    "height": 896,
+                    "width": 1152,
+                    "samples": 1,
+                    "steps": 30,
+                    "seed": 42  # Consistent seed for character consistency
+                },
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                image_data = response.json()["artifacts"][0]["base64"]
+
+                image_hash = hashlib.md5(scene_description.encode()).hexdigest()
+                image_path = f"static/images/story_page_{page_number}_{image_hash[:8]}.jpg"
+                self._save_and_compress_image(image_data, image_path)
+
+                logging.info(f"Generated text-only image for page {page_number}")
+                return f"/{image_path}"
+            else:
+                raise Exception(f"Image generation failed: {response.status_code}")
+
+        except Exception as e:
+            logging.error(f"Text-only generation failed: {e}")
+            raise
+
+    def _save_and_compress_image(self, image_data, output_path, quality=85):
+        """Save and compress image"""
+        try:
+            img = Image.open(io.BytesIO(base64.b64decode(image_data)))
+            img = img.convert('RGB')
+
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            img.save(output_path, 'JPEG', quality=quality, optimize=True)
+
+            file_size = os.path.getsize(output_path)
+            logging.info(f"Image saved: {output_path} ({file_size // 1024}KB)")
+
+        except Exception as e:
+            logging.error(f"Error saving image: {e}")
+            raise
+
+    # Legacy compatibility methods that your existing code expects
+    def generate_reference_image(self, character_description, scene="cheerful portrait"):
+        """Generate or use reference image"""
+        self.generate_character_profile(character_description)
+
+        if self.has_reference_photo():
+            logging.info("Using uploaded photo as reference")
+            return f"/{self.reference_photo_path}"
+        else:
+            # Generate a reference image using text-to-image
+            logging.info("No photo found, generating reference image")
+            return self.generate_story_image_text_only(f"Portrait of Esme - {scene}", 0)
+
+    def generate_story_image(self, scene_description, page_number, story_context=""):
+        """Main method that chooses photo or text generation"""
+        if self.has_reference_photo():
+            return self.generate_story_image_with_photo(scene_description, page_number, story_context)
+        else:
+            return self.generate_story_image_text_only(scene_description, page_number, story_context)
+
+    def get_character_consistency_summary(self):
+        """Get summary of character consistency approach"""
+        return {
+            'uses_photo_reference': self.has_reference_photo(),
+            'photo_path': self.reference_photo_path if self.has_reference_photo() else None,
+            'consistency_method': 'Photo-based' if self.has_reference_photo() else 'Text-based with seed'
+        }
+
+    # For backward compatibility - some code might call this
     def generate_image(self, stanza_text, image_description, character_description, story_context=""):
-        """Generate an image based on stanza text and character description.
+        """Legacy method for backward compatibility."""
+        # Initialize character profile if not done
+        if not self.character_profile:
+            self.generate_character_profile(character_description)
 
-        Args:
-            stanza_text (str): The text of the stanza
-            image_description (str): Concise description for image generation
-            character_description (str): Description of the character
-            story_context (str): Context from previous stanzas
-
-        Returns:
-            str: Path to the generated image
-
-        Raises:
-            Exception: If image generation fails
-        """
-        # Generate reference image first if not already done
-        if self.reference_seed is None:
-            self.generate_reference_image(character_description)
-
-        # Create a more detailed Esme character description block
-        esme_description = (
-            f"Esme is a 4-year-old girl with {character_description}. "
-            f"She should be drawn consistently in EVERY image with these EXACT features: "
-            f"{character_description}. "
-            f"Her expression should match the emotion in the current scene but her physical features must remain identical between images."
-        )
-
-        # Include story context if provided
-        context_prefix = f"{story_context}\n\n" if story_context else ""
-
-        # Format the complete prompt using the template
-        image_prompt = self.image_prompt_template
-        image_prompt = image_prompt.replace("{{character_description}}", character_description)
-        image_prompt = image_prompt.replace("{{image_description}}", image_description)
-        image_prompt = image_prompt.replace("{{is_reference}}", "NO")
-        image_prompt = image_prompt.replace("{{context_prefix}}", context_prefix)
-        image_prompt = image_prompt.replace("{{esme_description}}", esme_description)
-
-        # Ensure we're under the stability API limit of 2000 chars
-        if len(image_prompt) > 1900:
-            # If still too long, simplify while preserving the character consistency
-            context_prefix_short = f"{story_context[:50]}... " if story_context else ""
-            image_prompt = (
-                f"{context_prefix_short}Soft pastel drawing showing: {image_description[:150]}\n"
-                f"CRITICAL: Esme is a 4-year-old girl with {character_description[:100]}. "
-                f"Draw Esme with CONSISTENT APPEARANCE in every image. "
-                f"Animals: Adorably stylized with VERY large glossy eyes (1/3 of face), rounded shapes, kawaii style. "
-                f"Pastel colors with clean outlines."
-            )
-
-        logging.info(f"Generating image for scene: {image_description[:50]}...")
-        logging.info(f"Using consistent character seed: {self.reference_seed}")
-
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = requests.post(
-                    "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
-                    headers={
-                        "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "text_prompts": [
-                            {"text": image_prompt, "weight": 1.0},
-                            {"text": "distorted faces, extra limbs, two heads, blurry, dark, scary, dull colors, incorrect proportions, unnatural poses", "weight": -1.0}
-                        ],
-                        "cfg_scale": 8,
-                        "height": 896,
-                        "width": 1152,
-                        "samples": 1,
-                        "steps": 20,
-                        "seed": self.reference_seed
-                    },
-                    timeout=30
-                )
-
-                logging.info(f"Stability API response status: {response.status_code}")
-
-                if response.status_code == 200:
-                    image_data = response.json()["artifacts"][0]["base64"]
-                    # Create a unique filename based on the hash of the prompt
-                    image_hash = hashlib.md5(image_prompt.encode()).hexdigest()
-                    image_path = f"static/images/image_{image_hash}.jpg"
-                    self._compress_image(image_data, image_path)
-                    return f"/{image_path}"
-                elif response.status_code in (520, 502) and attempt < max_retries - 1:
-                    logging.warning(f"Retry attempt {attempt + 1} due to {response.status_code} error. Waiting 5 seconds...")
-                    time.sleep(5)
-                    continue
-                else:
-                    raise Exception(f"Stability API error: {response.status_code} - {response.text}")
-
-            except requests.RequestException as e:
-                logging.error(f"Request error: {e}")
-                if attempt < max_retries - 1:
-                    logging.info(f"Retry attempt {attempt + 1} due to request error. Waiting 5 seconds...")
-                    time.sleep(5)
-                    continue
-                raise
-
-        raise Exception("Max retries reached for Stability API request")
-
-    def _compress_image(self, image_data, output_path, quality=75):
-        """Compress the image using PIL to reduce file size.
-
-        Args:
-            image_data (str): Base64 encoded image data
-            output_path (str): Path to save the compressed image
-            quality (int): JPEG quality setting (0-100)
-        """
-        img = Image.open(io.BytesIO(base64.b64decode(image_data)))
-        img = img.convert('RGB')  # Convert to RGB for JPEG compatibility
-
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-        img.save(output_path, 'JPEG', quality=quality, optimize=True)
-        logging.info(f"Compressed image saved to {output_path}")
+        # Use new method
+        page_number = 1  # Default page number
+        return self.generate_story_image(image_description, page_number, story_context)

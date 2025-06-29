@@ -2,207 +2,246 @@ import requests
 import re
 import time
 import logging
+import json
 from pathlib import Path
 
 class StoryService:
-    """Service for generating and processing stories using Claude API."""
+    """Enhanced service for generating high-quality stories using Claude API with self-critique."""
 
     def __init__(self, api_key):
-        """Initialize StoryService with API key and model name.
-
-        Args:
-            api_key (str): Claude API key
-        """
+        """Initialize StoryService with API key and model name."""
         self.api_key = api_key
         self.model = "claude-3-5-sonnet-20241022"
 
-        # Load prompt templates
-        self.story_prompt_template = Path("prompts/story_prompt.txt").read_text()
-        self.image_desc_prompt_template = Path("prompts/image_description_prompt.txt").read_text()
-        self.simplified_story_prompt_template = Path("prompts/simplified_story_prompt.txt").read_text()
+        # Simple story templates for different types
+        self.story_templates = {
+            'adventure': 'Esme explores somewhere new and discovers something exciting',
+            'mystery': 'Esme finds clues and solves a puzzle or mystery', 
+            'friendship': 'Esme meets someone new and they become friends',
+            'problem_solving': 'Esme faces a challenge and finds a creative solution'
+        }
 
-    def generate_story(self, description, max_retries=3, initial_delay=1):
-        """Generate a story based on user description with retry mechanism.
+    def generate_story_with_template(self, description, character_description, template_type="adventure"):
+        """Generate story using template guidance"""
 
-        Args:
-            description (str): User-provided description of the story
-            max_retries (int): Maximum number of retry attempts
-            initial_delay (int): Initial delay in seconds before first retry
+        template_guidance = self.story_templates.get(template_type, self.story_templates['adventure'])
 
-        Returns:
-            str: Generated story text
+        prompt = f"""Create a delightful 5-6 stanza rhyming story for 4-year-old Esme.
 
-        Raises:
-            Exception: If story generation fails after all retries
-        """
-        # Prepare the prompt by replacing placeholders
-        prompt = self.story_prompt_template.replace("{{description}}", description)
+Story type: {template_type}
+Template: {template_guidance}
+Description: {description}
+Character: {character_description}
 
+Requirements:
+- 5-6 stanzas of 4 lines each
+- Mix of AABB and ABCB rhyme patterns  
+- Each stanza = one clear scene for illustration
+- Age-appropriate vocabulary with 2-3 new learning words
+- Happy, engaging story that follows the {template_type} template
+
+Create the story now. Do not include any revision notes or metadata - just the story."""
+
+        # Generate initial story
+        initial_story = self._call_claude_api(prompt)
+
+        # Clean initial story first
+        if initial_story:
+            initial_story = self._clean_story_output(initial_story)
+
+        # Simple self-critique (just one improvement pass)
+        if initial_story:
+            critique_prompt = f"""Improve this children's story for better flow and engagement:
+
+{initial_story}
+
+Make it more engaging for a 4-year-old while keeping the same structure. Focus on:
+1. Better rhymes
+2. More vivid, fun descriptions  
+3. Clear action in each stanza
+4. Age-appropriate language
+
+Provide ONLY the improved story - no revision notes or explanations."""
+
+            improved_story = self._call_claude_api(critique_prompt)
+
+            # Clean the improved story
+            if improved_story:
+                improved_story = self._clean_story_output(improved_story)
+                return improved_story
+
+        return initial_story
+
+    def _clean_story_output(self, story_text):
+        """Remove metadata but keep all story content - less aggressive filtering"""
+        if not story_text:
+            return story_text
+
+        # Split into sections by double newlines
+        sections = story_text.split('\n\n')
+        cleaned_sections = []
+
+        for section in sections:
+            section = section.strip()
+
+            # Skip empty sections
+            if not section:
+                continue
+
+            # Only skip OBVIOUS metadata sections - be much more conservative
+            obvious_metadata = [
+                '[The revised version includes:',  # Exact match only
+                '[The improved version has:',
+                '1. More playful, bouncy rhymes',  # Exact numbered list items
+                '2. Concrete details kids can relate to',
+                '3. Active verbs (zoomed, bouncing, rolled, tumbled)',
+                '4. Simple but engaging language',
+                '5. More sensory details and movement',
+                '6. Fun activities that 4-year-olds enjoy]'
+            ]
+
+            # Check for exact matches of obvious metadata
+            is_obvious_metadata = False
+            for metadata_pattern in obvious_metadata:
+                if section.startswith(metadata_pattern):
+                    is_obvious_metadata = True
+                    break
+
+            # Skip only if it's obvious metadata
+            if is_obvious_metadata:
+                continue
+
+            # Keep everything else - including story titles and content
+            # Even if it mentions "Little Esme" or starts with titles
+            cleaned_sections.append(section)
+
+        return '\n\n'.join(cleaned_sections)
+
+    def generate_story(self, description, character_description=None):
+        """Main entry point - use template method"""
+        # Default to adventure if called without template
+        return self.generate_story_with_template(description, character_description, "adventure")
+
+    def generate_simplified_story(self, original_story):
+        """Much better simplified version"""
+
+        # Clean the original story first
+        clean_original = self._clean_story_output(original_story)
+
+        prompt = f"""Create a simplified version for beginning readers (ages 3-5).
+
+Original story:
+{clean_original}
+
+Rules:
+- Same number of stanzas
+- Use ONLY these words: a, and, at, can, come, do, go, has, he, her, him, I, in, is, it, me, my, no, on, see, she, the, to, up, we, you, big, cat, dog, run, sit, fun, red, mom, dad, get, let, wet, hot, not
+- 2-4 sentences per stanza, maximum 4 words per sentence
+- Keep the same story events but much simpler
+
+Example:
+Original: "Down at PlayWorld, what did she spy? A slide that stretched up to the sky!"
+Simplified: "Esme went to play. She saw a big slide. It was very high. Up she went."
+
+Create ONLY the simplified version - no explanations."""
+
+        simplified = self._call_claude_api(prompt)
+
+        # Clean the simplified version too
+        if simplified:
+            simplified = self._clean_story_output(simplified)
+            return simplified
+
+        return self._create_basic_fallback(clean_original)
+
+    def generate_image_descriptions(self, stanzas, character_description=""):
+        """Generate enhanced image descriptions with character consistency."""
+        stanzas_text = "\n\n".join([f"STANZA {i+1}:\n{stanza}" for i, stanza in enumerate(stanzas)])
+
+        prompt = f"""Create vivid, consistent image descriptions for children's book illustrations.
+
+Character consistency requirement: Esme must appear identical in every image - {character_description}
+
+For each stanza, provide a detailed description focusing on:
+1. Esme's specific action/pose/expression
+2. Key objects or environment elements
+3. Emotional tone of the scene
+4. Visual composition that tells the story
+
+Stanzas to describe:
+{stanzas_text}
+
+Format: One detailed description per stanza, 15-25 words each, focusing on specific visual elements that an illustrator could draw.
+
+Provide ONLY the descriptions - no explanations."""
+
+        try:
+            response = self._call_claude_api(prompt)
+            if response:
+                descriptions = [desc.strip() for desc in response.split('\n') if desc.strip()]
+                # Clean up any numbering
+                cleaned = [re.sub(r'^(\d+\.|\*|\-)\s*', '', desc) for desc in descriptions]
+                return [desc for desc in cleaned if desc and len(desc) > 10]
+            return []
+        except Exception as e:
+            logging.error(f"Error generating image descriptions: {e}")
+            return []
+
+    def _call_claude_api(self, prompt, max_retries=3):
+        """Call Claude API with retry logic."""
         for attempt in range(max_retries):
             try:
-                delay = initial_delay * (2 ** attempt)  # Exponential backoff
                 if attempt > 0:
-                    logging.info(f"Retrying Claude API call (attempt {attempt + 1}/{max_retries}) after {delay} seconds...")
-                    time.sleep(delay)
+                    time.sleep(2 ** attempt)  # Exponential backoff
 
                 response = requests.post(
                     'https://api.anthropic.com/v1/messages',
                     json={
                         'model': self.model,
-                        'max_tokens': 1000,
+                        'max_tokens': 1500,
                         'messages': [{'role': 'user', 'content': prompt}]
                     },
                     headers={
                         'x-api-key': self.api_key,
                         'anthropic-version': '2023-06-01',
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    timeout=30
                 )
 
-                logging.info(f"Claude API response status for story generation: {response.status_code}")
-
-                # Handle specific API errors
-                if response.status_code == 529:  # Overloaded error
+                if response.status_code == 200:
+                    content = response.json()['content'][0]['text']
+                    return content.replace('\\\\n', '\n').replace('\\n', '\n')
+                elif response.status_code == 529:  # Overloaded
                     if attempt == max_retries - 1:
-                        raise Exception("Claude API is currently overloaded. Please try again later.")
+                        raise Exception("Claude API overloaded")
                     continue
-
-                response.raise_for_status()
-                story_text = response.json()['content'][0]['text']
-
-                # Replace any escaped newlines with actual newlines
-                story_text = story_text.replace('\\\\n', '\n').replace('\\n', '\n')
-
-                return story_text
+                else:
+                    response.raise_for_status()
 
             except Exception as e:
                 if attempt == max_retries - 1:
-                    logging.error(f"Claude API error after {max_retries} attempts: {e}")
-                    raise Exception(f"Failed to generate story after multiple retries: {str(e)}")
-                logging.warning(f"Story generation attempt {attempt + 1} failed: {e}")
+                    logging.error(f"Claude API call failed after {max_retries} attempts: {e}")
+                    raise
+                logging.warning(f"Attempt {attempt + 1} failed: {e}")
 
-        # Should not reach here, but just in case
-        raise Exception("Failed to generate story after multiple retries")
+        return None
 
-    def generate_simplified_story(self, original_story):
-        """Generate a simplified version of the story for teaching reading.
-
-        Args:
-            original_story (str): The original story text
-
-        Returns:
-            str: Simplified version of the story
-
-        Raises:
-            Exception: If simplified story generation fails
-        """
-        # Prepare the prompt by replacing placeholders
-        prompt = self.simplified_story_prompt_template.replace("{{original_story}}", original_story)
-
-        try:
-            response = requests.post(
-                'https://api.anthropic.com/v1/messages',
-                json={
-                    'model': self.model,
-                    'max_tokens': 1000,
-                    'messages': [{'role': 'user', 'content': prompt}]
-                },
-                headers={
-                    'x-api-key': self.api_key,
-                    'anthropic-version': '2023-06-01',
-                    'Content-Type': 'application/json'
-                }
-            )
-
-            logging.info(f"Claude API response status for simplified story: {response.status_code}")
-            response.raise_for_status()
-
-            simplified_story = response.json()['content'][0]['text']
-
-            # Replace any escaped newlines with actual newlines
-            simplified_story = simplified_story.replace('\\\\n', '\n').replace('\\n', '\n')
-
-            return simplified_story
-
-        except Exception as e:
-            logging.error(f"Error generating simplified story: {e}")
-            # Return a fallback simple version if generation fails
-            return self._create_fallback_simplified_story(original_story)
-
-    def _create_fallback_simplified_story(self, original_story):
-        """Create a basic simplified version of the story if API call fails.
-
-        Args:
-            original_story (str): The original story text
-
-        Returns:
-            str: Basic simplified version of the story
-        """
-        # Split into stanzas
+    def _create_basic_fallback(self, original_story):
+        """Enhanced fallback simplified story creation."""
         stanzas = original_story.split('\n\n')
-
-        # Create a very basic simplification
         simplified_stanzas = []
+
         for stanza in stanzas:
-            # Take first and last line of each stanza as a simplification
-            lines = [line for line in stanza.split('\n') if line.strip()]
+            lines = [line.strip() for line in stanza.split('\n') if line.strip()]
             if lines:
-                simplified_lines = []
-                if len(lines) > 0:
-                    simplified_lines.append(lines[0])
-                if len(lines) > 2:
-                    simplified_lines.append(lines[-1])
-                simplified_stanzas.append('\n'.join(simplified_lines))
+                # Create simple sentences about what Esme does
+                simple_lines = [
+                    "Esme went to play.",
+                    "She saw something new.", 
+                    "It was big and fun.",
+                    "She had a good time."
+                ]
+                simplified_stanzas.append('\n'.join(simple_lines[:len(lines)]))
 
         return '\n\n'.join(simplified_stanzas)
-
-    def generate_image_descriptions(self, stanzas):
-        """Generate concise image descriptions for each stanza using Claude.
-
-        Args:
-            stanzas (list): List of stanza text blocks
-
-        Returns:
-            list: List of image descriptions corresponding to each stanza
-        """
-        # Combine stanzas into prompt content
-        stanzas_text = ""
-        for i, stanza in enumerate(stanzas):
-            stanzas_text += f"STANZA {i+1}:\n{stanza}\n\n"
-
-        # Prepare the prompt for image descriptions
-        prompt = self.image_desc_prompt_template.replace("{{stanzas}}", stanzas_text)
-
-        try:
-            response = requests.post(
-                'https://api.anthropic.com/v1/messages',
-                json={
-                    'model': self.model,
-                    'max_tokens': 1000,
-                    'messages': [{'role': 'user', 'content': prompt}]
-                },
-                headers={
-                    'x-api-key': self.api_key,
-                    'anthropic-version': '2023-06-01',
-                    'Content-Type': 'application/json'
-                }
-            )
-
-            response.raise_for_status()
-            image_descriptions = response.json()['content'][0]['text'].strip().split('\n')
-
-            # Clean up responses - remove any numbering or prefixes
-            cleaned_descriptions = []
-            for desc in image_descriptions:
-                # Remove numbers and other common prefixes
-                desc = re.sub(r'^(\d+\.|\*|\-|STANZA \d+:)\s*', '', desc.strip())
-                if desc:  # Only add non-empty descriptions
-                    cleaned_descriptions.append(desc)
-
-            logging.info(f"Generated {len(cleaned_descriptions)} image descriptions")
-            return cleaned_descriptions
-
-        except Exception as e:
-            logging.error(f"Error generating image descriptions: {e}")
-            # Return empty list - will fall back to using stanzas directly
-            return []
