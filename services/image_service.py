@@ -33,7 +33,7 @@ class ImageService:
         return self.character_profile
 
     def generate_story_image_with_photo(self, scene_description, page_number, story_context=""):
-        """Generate image using photo reference for better consistency - FIXED VERSION"""
+        """Generate image using photo reference for better consistency - FIXED VERSION with correct API format"""
 
         if not self.has_reference_photo():
             # Fallback to text-only generation
@@ -42,10 +42,6 @@ class ImageService:
 
         try:
             logging.info(f"Using photo reference for page {page_number}")
-
-            # Read and encode the reference photo
-            with open(self.reference_photo_path, 'rb') as image_file:
-                photo_data = base64.b64encode(image_file.read()).decode()
 
             # Create enhanced prompt for image-to-image with character diversity
             prompt = f"""Create a cinematic children's book illustration showing: {scene_description}
@@ -68,26 +64,37 @@ SCENE: {scene_description}
 
 Maintain Esme's exact appearance while ensuring all other characters look distinctly different."""
 
-            # FIXED: Use correct endpoint and parameters
+            negative_prompt = "realistic photography, adult features on child, all characters looking identical, scary, dark, blurry, distorted face, extra limbs"
+
+            # Read and encode the reference photo
+            with open(self.reference_photo_path, 'rb') as image_file:
+                image_data = base64.b64encode(image_file.read()).decode()
+
+            # FIXED: Use correct JSON format for image-to-image endpoint
+            payload = {
+                "init_image": image_data,
+                "text_prompts": [
+                    {"text": prompt, "weight": 1.0},
+                    {"text": negative_prompt, "weight": -1.0}
+                ],
+                "image_strength": 0.35,  # How much to change from original
+                "cfg_scale": 7,
+                "height": 1024,
+                "width": 1024,
+                "samples": 1,
+                "steps": 25
+            }
+
+            headers = {
+                'Authorization': f'Bearer {self.api_key}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+
             response = requests.post(
                 "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/image-to-image",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "init_image": photo_data,
-                    "text_prompts": [
-                        {"text": prompt, "weight": 1.0},
-                        {"text": "realistic photography, adult features on child, all characters looking identical, scary, dark, blurry", "weight": -1.0}
-                    ],
-                    "image_strength": 0.35,  # FIXED: Slightly higher to allow more scene variation
-                    "cfg_scale": 7,  # FIXED: Slightly lower for better adherence
-                    "height": 1024,  # FIXED: Use standard dimensions
-                    "width": 1024,   # FIXED: Square format works better
-                    "samples": 1,
-                    "steps": 25  # FIXED: Reduced steps for stability
-                },
+                headers=headers,
+                json=payload,
                 timeout=60
             )
 
@@ -102,7 +109,8 @@ Maintain Esme's exact appearance while ensuring all other characters look distin
                 logging.info(f"✓ Generated image with photo reference for page {page_number}")
                 return f"/{image_path}"
             else:
-                logging.warning(f"Photo-based generation failed: {response.status_code} - {response.text}")
+                error_text = response.text
+                logging.warning(f"Photo-based generation failed: {response.status_code} - {error_text}")
                 # Fallback to text-only
                 return self.generate_story_image_text_only(scene_description, page_number, story_context)
 
@@ -112,22 +120,23 @@ Maintain Esme's exact appearance while ensuring all other characters look distin
             return self.generate_story_image_text_only(scene_description, page_number, story_context)
 
     def generate_story_image_text_only(self, scene_description, page_number, story_context=""):
-        """Enhanced text-only generation with character diversity"""
+        """Enhanced text-only generation with better character consistency"""
 
         character_desc = self.character_profile['description'] if self.character_profile else "4 years old, curly brown hair, light skin, blue-green eyes"
 
-        # Enhanced prompt with character diversity
+        # Enhanced prompt with much stronger character consistency
         prompt = f"""Cinematic children's book illustration: {scene_description}
 
-MAIN CHARACTER - Esme:
-- Exactly {character_desc}
-- She must appear IDENTICAL in every image
-- Always the focal point
+MAIN CHARACTER - Esme (CRITICAL CONSISTENCY):
+- EXACTLY: {character_desc}
+- She must appear IDENTICAL in every image: same face shape, exact hair texture and color, same eye color, same skin tone
+- Always the focal point and most detailed character
+- Consistent proportions and facial features
 
 OTHER CHARACTERS (if present):
-- Parents: Adult height, different hair colors from Esme, mature faces
-- Dad: Tall adult man, different hair color, kind expression
-- Mum: Adult woman, different hair style from Esme, warm smile
+- Parents: Adult height, clearly different hair colors from Esme, mature faces
+- Dad: Tall adult man, different hair color (brown/black), kind expression
+- Mom: Adult woman, different hair style from Esme (straight/wavy), warm smile
 - Other children: Clearly different - if Esme has curly brown hair, give others straight blonde, black braids, red pigtails, etc.
 - Animals: Cute kawaii style, large eyes, but each species distinct
 
@@ -138,31 +147,37 @@ VISUAL STYLE:
 - Professional children's book quality
 - Whimsical, magical atmosphere
 
-Make sure all characters are visually distinct from each other, especially from Esme."""
+CHARACTER CONSISTENCY SEED: Use consistent visual elements for Esme across all scenes.
 
-        # Ensure prompt is not too long
-        if len(prompt) > 1900:
-            prompt = f"Cinematic children's book illustration: {scene_description}. Esme ({character_desc}) as focal point, other characters clearly different. Soft pastels, dynamic composition."
+Make sure Esme looks exactly the same as previous illustrations - same face, hair, and overall appearance."""
+
+        negative_prompt = "realistic photography, all characters looking identical, adult features on child, scary, dark, blurry, multiple faces, distorted anatomy, extra limbs"
 
         try:
+            # FIXED: Use correct JSON format for text-to-image endpoint
+            payload = {
+                "text_prompts": [
+                    {"text": prompt, "weight": 1.0},
+                    {"text": negative_prompt, "weight": -1.0}
+                ],
+                "cfg_scale": 7,
+                "height": 1024,
+                "width": 1024,
+                "samples": 1,
+                "steps": 30,
+                "seed": 12345  # Consistent seed for character consistency
+            }
+
+            headers = {
+                'Authorization': f'Bearer {self.api_key}',
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+
             response = requests.post(
                 "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "text_prompts": [
-                        {"text": prompt, "weight": 1.0},
-                        {"text": "realistic photography, all characters looking identical, adult features on child, scary, dark, blurry", "weight": -1.0}
-                    ],
-                    "cfg_scale": 7,
-                    "height": 1024,  # FIXED: Standard dimensions
-                    "width": 1024,   # FIXED: Square format
-                    "samples": 1,
-                    "steps": 25,
-                    "seed": 42  # Consistent seed for Esme's character
-                },
+                headers=headers,
+                json=payload,
                 timeout=60
             )
 

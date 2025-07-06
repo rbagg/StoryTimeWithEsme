@@ -136,6 +136,46 @@
 .page.has-animation {
     animation-delay: 0.2s;
 }
+
+/* Summary page specific styling */
+.summary-page {
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+    border: 3px solid #4ecdc4;
+    position: relative;
+}
+
+.summary-page::before {
+    content: '🎬';
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    font-size: 2rem;
+    opacity: 0.3;
+}
+
+.summary-title {
+    color: #4ecdc4;
+    text-align: center;
+    margin: 0 0 15px 0;
+    font-size: 28px;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+}
+
+.story-summary-text {
+    background: rgba(78, 205, 196, 0.1);
+    padding: 15px;
+    border-radius: 10px;
+    font-style: italic;
+    text-align: center;
+    margin: 15px 0;
+    border-left: 4px solid #4ecdc4;
+}
+
+.summary-end {
+    font-size: 24px;
+    color: #4ecdc4;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+}
 </style>
 {% endblock %}
 
@@ -164,11 +204,12 @@ class EnhancedAnimationController {
 
     addAnimationControls(page, pageIndex) {
         const mediaContainer = page.querySelector('.page-media-container') || this.createMediaContainer(page);
+        const isSummaryPage = page.dataset.isSummary === 'true';
 
         // Add animation info badge
         const infoBadge = document.createElement('div');
         infoBadge.className = 'animation-info';
-        infoBadge.textContent = page.dataset.animationAction || 'Animated';
+        infoBadge.textContent = isSummaryPage ? 'Story Summary' : (page.dataset.animationAction || 'Animated');
         mediaContainer.appendChild(infoBadge);
 
         // Add control buttons
@@ -179,7 +220,7 @@ class EnhancedAnimationController {
         const playBtn = document.createElement('button');
         playBtn.className = 'animation-btn';
         playBtn.innerHTML = '▶️';
-        playBtn.title = `Play ${page.dataset.animationAction || 'animation'}`;
+        playBtn.title = isSummaryPage ? 'Play story summary animation' : `Play ${page.dataset.animationAction || 'animation'}`;
         playBtn.onclick = () => this.showAnimation(page);
 
         // Show static button
@@ -192,6 +233,7 @@ class EnhancedAnimationController {
         controlsDiv.appendChild(staticBtn);
         controlsDiv.appendChild(playBtn);
         mediaContainer.appendChild(controlsDiv);
+    }
     }
 
     createMediaContainer(page) {
@@ -330,10 +372,12 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show helpful tip
         const tip = document.createElement('div');
         tip.className = 'animation-success';
-        tip.innerHTML = `
-            <strong>✨ This story includes animated scenes!</strong><br>
-            <small>Click the ▶️ button on any page to see the animation, or press 'A' to toggle all animations at once.</small>
-        `;
+        if (hasAnimations) {
+            tip.innerHTML = `
+                <strong>✨ This story includes a summary animation!</strong><br>
+                <small>Scroll to the end to see Esme's complete adventure animated, or press 'A' to toggle the animation.</small>
+            `;
+        }
 
         const storyContainer = document.querySelector('.story-container');
         if (storyContainer && storyContainer.firstChild) {
@@ -367,11 +411,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     <!-- Story Pages -->
     {% for page in story %}
-        <div class="page" 
+        <div class="page{% if page.get('is_summary_page') %} summary-page{% endif %}" 
              data-has-animation="{{ 'true' if page.get('has_animation', False) else 'false' }}"
              {% if page.get('animation_action') %}data-animation-action="{{ page.animation_action }}"{% endif %}
              {% if page.get('animation') %}data-animation-path="{{ page.animation }}"{% endif %}
-             {% if page.get('animation_error') %}data-animation-error="{{ page.animation_error }}"{% endif %}>
+             {% if page.get('animation_error') %}data-animation-error="{{ page.animation_error }}"{% endif %}
+             {% if page.get('is_summary_page') %}data-is-summary="true"{% endif %}>
+
+            {% if page.get('is_summary_page') %}
+                <h2 class="summary-title">🎬 Story Summary</h2>
+                {% if page.get('story_summary') %}
+                    <p class="story-summary-text">{{ page.story_summary }}</p>
+                {% endif %}
+            {% endif %}
 
             <div class="page-media-container">
                 <img src="{{ page.image }}" alt="Page {{ page.page }}" class="page-image">
@@ -412,15 +464,21 @@ document.addEventListener('DOMContentLoaded', function() {
             <!-- Animation Info (if available) -->
             {% if page.get('has_animation') %}
                 <div class="animation-success">
-                    <strong>🎬 Animated Scene:</strong> {{ page.get('animation_description', 'Custom animation for this scene') }}
+                    {% if page.get('is_summary_page') %}
+                        <strong>🎬 Story Summary Animation:</strong> A complete recap of Esme's adventure!
+                    {% else %}
+                        <strong>🎬 Animated Scene:</strong> {{ page.get('animation_description', 'Custom animation for this scene') }}
+                    {% endif %}
                     {% if page.get('animation_duration') %}
                         <br><small>Duration: {{ "%.1f"|format(page.animation_duration) }}s</small>
                     {% endif %}
                 </div>
             {% endif %}
 
-            {% if loop.last %}
+            {% if loop.last and not page.get('is_summary_page') %}
                 <p class="end">The End</p>
+            {% elif page.get('is_summary_page') %}
+                <p class="end summary-end">🌟 Thank you for reading Esme's adventure! 🌟</p>
             {% endif %}
         </div>
     {% endfor %}
@@ -444,3 +502,4 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     </div>
 </div>
+{% endblock %}
